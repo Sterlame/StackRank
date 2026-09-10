@@ -156,6 +156,24 @@
   .color-check { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; font-size: 0.85rem; font-weight: 500; color: var(--paper); cursor: pointer; }
   .color-check input { width: auto; margin: 0; }
   .color-picks { margin-bottom: 14px; }
+  .bracket-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .info-btn {
+    width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--paper-dim2); background: none;
+    color: var(--paper-dim2); font-family: ui-monospace, monospace; font-size: 0.62rem; font-weight: 700;
+    line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .info-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  .filter-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .filter-bar select { width: auto; min-width: 120px; margin-bottom: 0; }
+  .filter-color-picks { display: flex; gap: 4px; }
+  .color-filter-pip {
+    width: 30px; height: 30px; border: 1px solid var(--line); background: none;
+    font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    opacity: 0.45; transition: opacity 0.15s, border-color 0.15s;
+  }
+  .color-filter-pip:hover { opacity: 0.8; }
+  .color-filter-pip.active { opacity: 1; border-color: var(--gold); }
 
   .modal-backdrop {
     display: none; position: fixed; inset: 0; background: rgba(10,10,11,0.72); backdrop-filter: blur(2px);
@@ -419,6 +437,21 @@
   <section class="view" id="view-board">
     <div class="panel">
       <h2>Deck leaderboard</h2>
+      <div class="filter-bar">
+        <select id="boardBracketFilter" onchange="setBoardBracketFilter(this.value)">
+          <option value="all">All brackets</option>
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          <option value="3.5">3.5</option><option value="4">4</option><option value="5">5</option>
+        </select>
+        <div class="filter-color-picks" id="boardColorFilter">
+          <button class="color-filter-pip" data-color="W" onclick="toggleBoardColorFilter('W')">⚪</button>
+          <button class="color-filter-pip" data-color="U" onclick="toggleBoardColorFilter('U')">🔵</button>
+          <button class="color-filter-pip" data-color="B" onclick="toggleBoardColorFilter('B')">⚫</button>
+          <button class="color-filter-pip" data-color="R" onclick="toggleBoardColorFilter('R')">🔴</button>
+          <button class="color-filter-pip" data-color="G" onclick="toggleBoardColorFilter('G')">🟢</button>
+        </div>
+        <button class="icon-link" onclick="clearBoardFilters()">clear</button>
+      </div>
       <table id="boardTable">
         <thead>
           <tr>
@@ -472,6 +505,10 @@
           <div><label>Deck name</label><input id="deckName" placeholder="e.g. Garth One-Eye"></div>
           <div><label>Default pilot</label><select id="deckPlayer"></select></div>
         </div>
+        <div class="row">
+          <div><label>Commander</label><input id="deckCommander" placeholder="e.g. Korvold, Fae-Cursed King"></div>
+          <div><label>Partner / background (optional)</label><input id="deckCommanderPartner" placeholder="e.g. Tevesh Szat, Deceiver's Blade"></div>
+        </div>
         <label>Color identity</label>
         <div class="color-picks">
           <label class="color-check"><input type="checkbox" value="W"> ⚪ White</label>
@@ -480,10 +517,14 @@
           <label class="color-check"><input type="checkbox" value="R"> 🔴 Red</label>
           <label class="color-check"><input type="checkbox" value="G"> 🟢 Green</label>
         </div>
-        <label>Self-reported bracket (1 = low power, 5 = cEDH)</label>
+        <div class="bracket-label-row">
+          <label style="margin-bottom:0;">Self-reported bracket</label>
+          <button type="button" class="info-btn" onclick="openBracketInfoModal()" title="What do brackets mean?">i</button>
+        </div>
         <select id="deckBracket">
           <option value="1">1 — casual</option><option value="2">2</option>
-          <option value="3" selected>3 — mid</option><option value="4">4</option><option value="5">5 — cEDH</option>
+          <option value="3" selected>3 — mid</option><option value="3.5">3.5</option>
+          <option value="4">4</option><option value="5">5 — cEDH</option>
         </select>
         <button class="btn" onclick="addDeck()">Add deck</button>
       </div>
@@ -491,10 +532,29 @@
         <h2>Decks</h2>
         <table id="decksTable"><tbody></tbody></table>
         <div class="empty" id="decksEmpty">No decks registered yet.</div>
-        <div class="status-line">Click a deck to view its edition history and log upgrades.</div>
+        <div class="status-line">Click a deck to view its edition history, edit it, or log upgrades.</div>
       </div>
     </div>
   </section>
+
+<div class="modal-backdrop" id="bracketInfoModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeBracketInfoModal()">close ×</button>
+    <h3>What bracket means here</h3>
+    <div class="modal-sub">A starting estimate, not a ranking</div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6; margin-bottom: 12px;">
+      Bracket is a self-reported power level — 1 (casual) up to 5 (cEDH), with 3.5 as the tier
+      between mid and high power. It's just where a deck's pilot thinks it sits before any games
+      are logged.
+    </div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
+      The <strong>leaderboard doesn't rank by bracket</strong>. It ranks by win rate and how fast a
+      deck closes out games (average turn of its wins), once real games are on the board. A high
+      bracket with a low win rate and slow wins isn't actually competitive — the point is to let
+      the data show where a deck really lands, with bracket as just the initial guess.
+    </div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="gameDetailModal">
   <div class="modal">
@@ -502,6 +562,9 @@
     <h3 id="gdTitle"></h3>
     <div class="modal-sub" id="gdSub"></div>
     <div id="gdBody"></div>
+    <div style="margin-top:16px; border-top:1px solid var(--line); padding-top:14px;">
+      <button class="icon-link" onclick="deleteGame()">delete this game (admin)</button>
+    </div>
   </div>
 </div>
 
@@ -509,7 +572,42 @@
   <div class="modal">
     <button class="modal-close" onclick="closeDeckModal()">close ×</button>
     <h3 id="modalDeckName"></h3>
+    <div class="history-note" id="modalDeckCommander" style="margin-bottom: 4px;"></div>
     <div class="modal-sub" id="modalDeckMeta"></div>
+
+    <div style="margin-bottom: 16px;">
+      <button class="icon-link" onclick="toggleDeckEdit()" id="deckEditToggle">edit deck details</button>
+      <div id="deckEditWrap" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div><label>Deck name</label><input id="editDeckName"></div>
+          <div>
+            <div class="bracket-label-row">
+              <label style="margin-bottom:0;">Bracket</label>
+              <button type="button" class="info-btn" onclick="openBracketInfoModal()">i</button>
+            </div>
+            <select id="editDeckBracket">
+              <option value="1">1 — casual</option><option value="2">2</option>
+              <option value="3">3 — mid</option><option value="3.5">3.5</option>
+              <option value="4">4</option><option value="5">5 — cEDH</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div><label>Commander</label><input id="editDeckCommander"></div>
+          <div><label>Partner / background</label><input id="editDeckCommanderPartner"></div>
+        </div>
+        <label>Color identity</label>
+        <div class="color-picks" id="editDeckColors">
+          <label class="color-check"><input type="checkbox" value="W"> ⚪ White</label>
+          <label class="color-check"><input type="checkbox" value="U"> 🔵 Blue</label>
+          <label class="color-check"><input type="checkbox" value="B"> ⚫ Black</label>
+          <label class="color-check"><input type="checkbox" value="R"> 🔴 Red</label>
+          <label class="color-check"><input type="checkbox" value="G"> 🟢 Green</label>
+        </div>
+        <button class="btn small" onclick="saveDeckEdits()">Save changes</button>
+      </div>
+    </div>
+
     <div id="modalHistory"></div>
     <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:16px;">
       <label>Log an upgrade</label>
@@ -568,7 +666,10 @@ const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxLOwq3ypwg
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
 let activeDeckId = null;
+let activeGameId = null;
 let sortState = { key: 'winpct', dir: 'desc' };
+let boardBracketFilter = 'all';
+let boardColorFilter = [];
 let connectionState = 'unconfigured'; // unconfigured | connecting | connected | error
 
 const COLOR_PIP = { W: '⚪', U: '🔵', B: '⚫', R: '🔴', G: '🟢' };
@@ -655,6 +756,10 @@ function pipsFor(colors) {
   if (!colors || !colors.length) return '';
   return `<span class="pips">${colors.map(c => `<span class="pip">${COLOR_PIP[c] || ''}</span>`).join('')}</span>`;
 }
+function commanderLine(deck) {
+  if (!deck || !deck.commander) return '';
+  return escapeHtml(deck.commander) + (deck.commanderPartner ? ' // ' + escapeHtml(deck.commanderPartner) : '');
+}
 
 // ---------- SETTINGS ----------
 function applySettings() {
@@ -724,11 +829,15 @@ function addDeck() {
   const name = nameEl.value.trim();
   const playerId = document.getElementById('deckPlayer').value;
   const bracket = document.getElementById('deckBracket').value;
+  const commander = document.getElementById('deckCommander').value.trim();
+  const commanderPartner = document.getElementById('deckCommanderPartner').value.trim();
   const colors = Array.from(document.querySelectorAll('.color-check input:checked')).map(c => c.value);
   if (!name || !playerId) return;
   nameEl.value = '';
+  document.getElementById('deckCommander').value = '';
+  document.getElementById('deckCommanderPartner').value = '';
   document.querySelectorAll('.color-check input').forEach(c => c.checked = false);
-  apiPost('addDeck', { id: uid('d'), name, playerId, bracket: Number(bracket), colors, date: todayStr() });
+  apiPost('addDeck', { id: uid('d'), name, playerId, bracket: Number(bracket), colors, commander, commanderPartner, date: todayStr() });
 }
 async function removeDeck(id) { await apiPost('removeDeck', { id }); }
 function renderDecks() {
@@ -737,10 +846,11 @@ function renderDecks() {
   document.getElementById('decksEmpty').style.display = DATA.decks.length ? 'none' : 'block';
   DATA.decks.forEach(d => {
     const pilot = DATA.players.find(p => p.id === d.playerId);
+    const cmd = commanderLine(d);
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(d.id); };
-    tr.innerHTML = `<td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span></td>
+    tr.innerHTML = `<td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="mono" style="color:var(--paper-dim2)">${pilot ? escapeHtml(pilot.name) : '—'}</td>
       <td class="num mono">B${d.bracket}</td>
       <td class="num"><button class="remove-link" onclick="removeDeck('${d.id}')">remove</button></td>`;
@@ -775,10 +885,11 @@ function renderMyDecks() {
     const gp = DATA.games.reduce((n, g) => n + g.participants.filter(pt => pt.deckId === d.id).length, 0);
     const wins = DATA.games.reduce((n, g) => n + g.participants.filter(pt => pt.deckId === d.id && pt.outcome === 'win').length, 0);
     const winPct = gp ? ((wins / gp) * 100).toFixed(0) + '%' : '—';
+    const cmd = commanderLine(d);
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(d.id); };
-    tr.innerHTML = `<td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span></td>
+    tr.innerHTML = `<td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono">B${d.bracket}</td><td class="num mono">${gp}</td><td class="num mono" style="color:var(--sage)">${winPct}</td>`;
     tbody.appendChild(tr);
   });
@@ -791,6 +902,8 @@ function openDeckModal(deckId) {
   if (!deck) return;
   const pilot = DATA.players.find(p => p.id === deck.playerId);
   document.getElementById('modalDeckName').innerHTML = `${escapeHtml(deck.name)} ${pipsFor(deck.colors)}`;
+  const cmd = commanderLine(deck);
+  document.getElementById('modalDeckCommander').textContent = cmd || '';
   document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket} · Current: ${deck.edition}`;
   document.getElementById('modalHistory').innerHTML = [...deck.history].reverse().map(h => `
     <div class="history-row">
@@ -800,11 +913,42 @@ function openDeckModal(deckId) {
   document.getElementById('editionLabel').value = '';
   document.getElementById('editionDate').value = todayStr();
   document.getElementById('editionNote').value = '';
+
+  // reset + prefill the edit section, collapsed by default
+  document.getElementById('deckEditWrap').style.display = 'none';
+  document.getElementById('deckEditToggle').textContent = 'edit deck details';
+  document.getElementById('editDeckName').value = deck.name;
+  document.getElementById('editDeckBracket').value = String(deck.bracket);
+  document.getElementById('editDeckCommander').value = deck.commander || '';
+  document.getElementById('editDeckCommanderPartner').value = deck.commanderPartner || '';
+  document.querySelectorAll('#editDeckColors input').forEach(c => { c.checked = (deck.colors || []).includes(c.value); });
+
   document.getElementById('deckModal').classList.add('active');
+}
+function toggleDeckEdit() {
+  const wrap = document.getElementById('deckEditWrap');
+  const open = wrap.style.display !== 'none';
+  wrap.style.display = open ? 'none' : 'block';
+  document.getElementById('deckEditToggle').textContent = open ? 'edit deck details' : 'hide edit form';
+}
+async function saveDeckEdits() {
+  const deck = DATA.decks.find(d => d.id === activeDeckId);
+  if (!deck) return;
+  const name = document.getElementById('editDeckName').value.trim();
+  if (!name) { alert('Deck name is required.'); return; }
+  const bracket = Number(document.getElementById('editDeckBracket').value);
+  const commander = document.getElementById('editDeckCommander').value.trim();
+  const commanderPartner = document.getElementById('editDeckCommanderPartner').value.trim();
+  const colors = Array.from(document.querySelectorAll('#editDeckColors input:checked')).map(c => c.value);
+  await apiPost('updateDeck', { id: deck.id, name, bracket, colors, commander, commanderPartner });
+  openDeckModal(deck.id);
 }
 function closeDeckModal() { document.getElementById('deckModal').classList.remove('active'); activeDeckId = null; }
 document.getElementById('deckModal').addEventListener('click', (e) => { if (e.target.id === 'deckModal') closeDeckModal(); });
 document.getElementById('gameDetailModal').addEventListener('click', (e) => { if (e.target.id === 'gameDetailModal') closeGameDetailModal(); });
+function openBracketInfoModal() { document.getElementById('bracketInfoModal').classList.add('active'); }
+function closeBracketInfoModal() { document.getElementById('bracketInfoModal').classList.remove('active'); }
+document.getElementById('bracketInfoModal').addEventListener('click', (e) => { if (e.target.id === 'bracketInfoModal') closeBracketInfoModal(); });
 
 async function logEdition() {
   const deck = DATA.decks.find(d => d.id === activeDeckId);
@@ -971,7 +1115,24 @@ function computeLeaderboardRows() {
       winpct: s.gp ? (s.wins / s.gp) : 0,
       avgTurn: s.winTurns.length ? (s.winTurns.reduce((a,b)=>a+b,0) / s.winTurns.length) : null,
       threats: s.threats, elims: s.elims, elimRate: s.gp ? (s.elims / s.gp) : 0 };
+  }).filter(r => {
+    if (boardBracketFilter !== 'all' && Number(r.bracket) !== Number(boardBracketFilter)) return false;
+    if (boardColorFilter.length && !boardColorFilter.every(c => (r.deck.colors || []).includes(c))) return false;
+    return true;
   });
+}
+function setBoardBracketFilter(val) { boardBracketFilter = val; renderLeaderboard(); }
+function toggleBoardColorFilter(color) {
+  const i = boardColorFilter.indexOf(color);
+  if (i === -1) boardColorFilter.push(color); else boardColorFilter.splice(i, 1);
+  document.querySelectorAll('.color-filter-pip').forEach(b => b.classList.toggle('active', boardColorFilter.includes(b.dataset.color)));
+  renderLeaderboard();
+}
+function clearBoardFilters() {
+  boardBracketFilter = 'all'; boardColorFilter = [];
+  document.getElementById('boardBracketFilter').value = 'all';
+  document.querySelectorAll('.color-filter-pip').forEach(b => b.classList.remove('active'));
+  renderLeaderboard();
 }
 function renderLeaderboard() {
   const rows = computeLeaderboardRows();
@@ -996,8 +1157,9 @@ function renderLeaderboard() {
   rows.forEach(r => {
     const winPct = (r.winpct * 100).toFixed(0);
     const avgTurn = r.avgTurn === null ? '—' : r.avgTurn.toFixed(1);
+    const cmd = commanderLine(r.deck);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(r.deck.name)} ${pipsFor(r.deck.colors)}<span class="edition-tag">${r.deck.edition}</span></td>
+    tr.innerHTML = `<td>${escapeHtml(r.deck.name)} ${pipsFor(r.deck.colors)}<span class="edition-tag">${r.deck.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="mono" style="color:var(--paper-dim2)">${escapeHtml(r.pilotName || '—')}</td>
       <td class="num mono">B${r.bracket}</td>
       <td class="num mono">${r.gp}</td>
@@ -1031,6 +1193,7 @@ function renderGamesLog() {
 function openGameDetail(gameId) {
   const g = DATA.games.find(x => x.id === gameId);
   if (!g) return;
+  activeGameId = gameId;
   document.getElementById('gdTitle').textContent = g.date;
   document.getElementById('gdSub').textContent = `${g.playerCount} players · ended turn ${g.endTurn}`;
   const extrasByPlayer = {};
@@ -1055,14 +1218,23 @@ function openGameDetail(gameId) {
           <strong>${escapeHtml(player ? player.name : '—')}</strong>
           <span class="badge ${pt.outcome === 'win' ? 'win' : ''}">${pt.outcome}${pt.threatenedWin ? ' · threatened T' + (pt.threatenedTurn || '?') : ''}</span>
         </div>
-        <div class="history-note">${escapeHtml(deck ? deck.name : '—')}${deck ? ' (' + escapeHtml(pt.deckEdition || deck.edition) + ')' : ''}${pilot ? ' · piloted by ' + escapeHtml(pilot.name) : ''}</div>
+        <div class="history-note">${escapeHtml(deck ? deck.name : '—')}${deck ? ' (' + escapeHtml(pt.deckEdition || deck.edition) + ')' : ''}${pilot ? ' · piloted by ' + escapeHtml(pilot.name) : ''}${deck && commanderLine(deck) ? ' · ' + commanderLine(deck) : ''}</div>
         <div class="history-note">Eliminated: ${elims}</div>
         ${extraLine ? `<div class="history-note">${extraLine}</div>` : ''}
       </div>`;
   }).join('');
   document.getElementById('gameDetailModal').classList.add('active');
 }
-function closeGameDetailModal() { document.getElementById('gameDetailModal').classList.remove('active'); }
+function closeGameDetailModal() { document.getElementById('gameDetailModal').classList.remove('active'); activeGameId = null; }
+async function deleteGame() {
+  if (!activeGameId) return;
+  const code = window.prompt('Enter admin code to delete this game:');
+  if (code === null) return;
+  if (code !== 'Magic') { alert('Incorrect admin code.'); return; }
+  if (!confirm('Delete this game permanently? This cannot be undone.')) return;
+  const result = await apiPost('deleteGame', { id: activeGameId });
+  if (result && result.ok) { closeGameDetailModal(); }
+}
 
 function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
 function renderAll() {
@@ -1368,7 +1540,7 @@ function renderLifeTotal() {
       <div class="life-card-head">
         <div>
           <div class="life-card-name">${escapeHtml(p.name)}</div>
-          ${deck ? `<div class="history-note">${escapeHtml(deck.name)} ${pipsFor(deck.colors)}</div>` : ''}
+          ${deck ? `<div class="history-note">${escapeHtml(deck.name)} ${pipsFor(deck.colors)}${commanderLine(deck) ? ' · ' + commanderLine(deck) : ''}</div>` : ''}
         </div>
         <div class="life-card-actions">
           <input type="color" class="color-swatch" value="${p.cardColor || '#8b8779'}" onchange="setCardColor('${p.id}', this.value)" title="Card color">
