@@ -330,6 +330,12 @@
   }
   .play-toggle-chip:hover { border-color: var(--gold-dim); color: var(--paper); }
   .play-toggle-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(194,155,98,0.08); }
+  .play-toggle-chip:disabled { opacity: 0.35; cursor: not-allowed; }
+  .play-toggle-chip:disabled:hover { border-color: var(--line); color: var(--paper-dim2); }
+
+  /* Footer toggle row — non-intrusive, mounted with the sticky bar */
+  .pab-toggles { display: flex; gap: 6px; max-width: 900px; margin: 0 auto 8px; }
+  .play-toggle-chip.small { flex: 1; text-align: center; padding: 6px 8px; font-size: 0.62rem; }
 
   .life-tiles { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
   .life-tile {
@@ -349,6 +355,7 @@
   .now-playing-hero {
     background: var(--panel); border: 1px solid var(--gold-dim); border-left: 5px solid var(--gold);
     padding: 16px 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    transition: padding 0.15s;
   }
   .np-turn-label {
     font-family: ui-monospace, monospace; font-weight: 800; font-size: 0.7rem; color: var(--ink);
@@ -357,12 +364,38 @@
   .np-turn-label::before { content: "TURN "; }
   .np-name { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
   .np-deck { color: var(--paper-dim); font-size: 0.85rem; width: 100%; }
+  .np-t1a-btn {
+    border: 1px solid var(--gold-dim); background: none; color: var(--paper-dim2);
+    font-family: ui-monospace, monospace; font-weight: 800; font-size: 0.68rem; letter-spacing: 0.02em;
+    padding: 6px 12px; cursor: pointer; flex: none; margin-left: auto;
+  }
+  .np-t1a-btn.active { background: var(--gold); color: var(--ink); border-color: var(--gold); }
 
   .secondary-actions { display: flex; gap: 8px; justify-content: center; margin: 16px 0; flex-wrap: wrap; align-items: center; }
   .btn-eliminate { background: var(--danger); color: var(--ink); }
   .btn-eliminate:hover { filter: brightness(1.1); }
   .btn-won { background: var(--gold); color: var(--ink); }
   .btn-won:hover { filter: brightness(1.1); }
+
+  /* LIFE FOCUS MODE — when life totals are on, they should be readable across
+     a table at a glance; everything else compresses to make room. */
+  #activeGamePanel.life-focus .now-playing-hero { padding: 8px 12px; margin-bottom: 8px; }
+  #activeGamePanel.life-focus .np-name { font-size: 1rem; }
+  #activeGamePanel.life-focus .np-deck { font-size: 0.7rem; }
+  #activeGamePanel.life-focus .game-roster { display: none; }
+  #activeGamePanel.life-focus .life-tiles {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px; overflow: visible; margin-bottom: 10px;
+  }
+  #activeGamePanel.life-focus .life-tile { padding: 20px 8px; }
+  #activeGamePanel.life-focus .life-tile-name { font-size: 0.78rem; }
+  #activeGamePanel.life-focus .life-tile-num { font-size: 3rem; }
+  #activeGamePanel.life-focus .phase-banner-panel { padding: 8px 10px; margin-bottom: 6px; }
+  #activeGamePanel.life-focus .phase-name-big { font-size: 1rem; margin-bottom: 2px; }
+  #activeGamePanel.life-focus .phase-group-label { font-size: 0.56rem; margin-bottom: 2px; }
+  #activeGamePanel.life-focus .phase-desc { display: none; }
+  #activeGamePanel.life-focus .phase-stepper { margin-bottom: 4px; }
+  #activeGamePanel.life-focus .secondary-actions { margin: 10px 0; }
 
   /* Sticky bottom action bar — the every-tap core loop */
   .play-action-bar {
@@ -495,7 +528,7 @@
       <div id="gameSetupPanel">
         <div class="panel">
           <h2>Start a game</h2>
-          <p class="setup-hint">Add each player in turn order (seat 1 goes first). Pick their deck, flag Turn 1 Advantage if they had it.</p>
+          <p class="setup-hint">Add each player in turn order (seat 1 goes first). Pick their deck — you'll flag Turn 1 Advantage live during their first turn.</p>
           <label>Starting life</label>
           <div class="life-preset-group" id="lifePresetGroup">
             <button type="button" class="life-preset active" data-val="40" onclick="setSetupLife(40)">40</button>
@@ -516,12 +549,7 @@
           <div class="np-turn-label"><span id="turnNumberDisplay">1</span></div>
           <div class="np-name" id="nowPlayingName">—</div>
           <div class="np-deck" id="nowPlayingDeck"></div>
-        </div>
-
-        <div class="play-toggle-row">
-          <button type="button" class="play-toggle-chip" id="togglePhasesBtn" onclick="togglePhasesDisplay()">Phases</button>
-          <button type="button" class="play-toggle-chip" id="toggleLifeBtn" onclick="toggleLifeDisplay()">Life totals</button>
-          <button class="icon-link" onclick="endGame()" style="margin-left:auto;">end game (discard)</button>
+          <button type="button" class="np-t1a-btn" id="npT1aBtn" onclick="toggleCurrentT1a()" style="display:none;" title="Turn 1 Advantage">T1A</button>
         </div>
 
         <div class="game-roster" id="gameRoster"></div>
@@ -543,21 +571,17 @@
           <button class="btn btn-eliminate" onclick="openEliminateModal()">✕ Eliminate a player</button>
           <button class="btn btn-won" onclick="openGameWonModal()">🏆 Game won</button>
         </div>
-
-        <div class="panel compact" style="margin-top:14px;">
-          <div class="life-section-label collapse-toggle" onclick="toggleCollapse(this)"><span>Turn times this game</span><span class="collapse-arrow">▸</span></div>
-          <div id="turnTimesList" class="collapse-body" style="display:none;"></div>
-        </div>
-        <div class="panel compact" style="margin-top:10px;">
-          <div class="life-section-label collapse-toggle" onclick="toggleCollapse(this)"><span>Eliminations this game</span><span class="collapse-arrow">▸</span></div>
-          <div id="elimSessionList" class="collapse-body" style="display:none;"></div>
-        </div>
       </div>
     </div>
   </section>
 
   <!-- STICKY PLAY ACTION BAR -->
   <div id="playActionBar" class="play-action-bar" style="display:none;">
+    <div class="pab-toggles">
+      <button type="button" class="play-toggle-chip small" id="togglePhasesBtn" onclick="togglePhasesDisplay()">Phases</button>
+      <button type="button" class="play-toggle-chip small" id="toggleLifeBtn" onclick="toggleLifeDisplay()">Life</button>
+      <button type="button" class="play-toggle-chip small" onclick="openDataModal()">Data</button>
+    </div>
     <div class="pab-undo" id="pabUndo"></div>
     <div class="pab-main">
       <button class="pab-btn pab-prev" id="pabPrevBtn" onclick="prevPhase()">← Prev</button>
@@ -721,6 +745,21 @@
     <label>Winner</label>
     <select id="gameWonSelect"></select>
     <button class="btn small" onclick="confirmGameWon()">Confirm winner</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="dataModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDataModal()">close ×</button>
+    <h3>Game data</h3>
+    <div class="modal-sub">Tracked automatically in the background</div>
+    <div class="life-section-label"><span>Turn times this game</span></div>
+    <div id="turnTimesList" style="margin-bottom: 16px;"></div>
+    <div class="life-section-label"><span>Eliminations this game</span></div>
+    <div id="elimSessionList"></div>
+    <div style="margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px;">
+      <button class="icon-link" onclick="closeDataModal(); endGame();">end game (discard)</button>
+    </div>
   </div>
 </div>
 
@@ -1780,12 +1819,23 @@ let turnTimes = {}; // { playerId: totalSeconds }
 let showPhases = localGet('stackrank-show-phases') === '1';
 let showLife = localGet('stackrank-show-life') === '1';
 function togglePhasesDisplay() { showPhases = !showPhases; localSet('stackrank-show-phases', showPhases ? '1' : '0'); applyPlayDisplayToggles(); }
-function toggleLifeDisplay() { showLife = !showLife; localSet('stackrank-show-life', showLife ? '1' : '0'); applyPlayDisplayToggles(); }
+function toggleLifeDisplay() {
+  if (!showLife && activeGame && activeGame.playOrder.length > 4) return; // button is disabled in this case, but guard anyway
+  showLife = !showLife;
+  localSet('stackrank-show-life', showLife ? '1' : '0');
+  applyPlayDisplayToggles();
+}
 function applyPlayDisplayToggles() {
   const phasesBtn = document.getElementById('togglePhasesBtn');
   const lifeBtn = document.getElementById('toggleLifeBtn');
+  const tooManyForLife = activeGame && activeGame.playOrder.length > 4;
+  if (tooManyForLife && showLife) { showLife = false; localSet('stackrank-show-life', '0'); }
   if (phasesBtn) phasesBtn.classList.toggle('active', showPhases);
-  if (lifeBtn) lifeBtn.classList.toggle('active', showLife);
+  if (lifeBtn) {
+    lifeBtn.classList.toggle('active', showLife);
+    lifeBtn.disabled = !!tooManyForLife;
+    lifeBtn.title = tooManyForLife ? 'Life totals support up to 4 players at a glance — this game has more; turn/elimination tracking still works fine.' : '';
+  }
   const phasesWrap = document.getElementById('phasesWrap');
   const lifeWrap = document.getElementById('lifeTilesWrap');
   if (phasesWrap) phasesWrap.style.display = showPhases ? 'block' : 'none';
@@ -1794,8 +1844,24 @@ function applyPlayDisplayToggles() {
   const nextBtn = document.getElementById('nextPhaseBtn');
   if (prevBtn) prevBtn.style.display = showPhases ? '' : 'none';
   if (nextBtn) nextBtn.style.display = showPhases ? '' : 'none';
+  const panel = document.getElementById('activeGamePanel');
+  if (panel) panel.classList.toggle('life-focus', showLife);
   renderPhaseTracker();
 }
+function toggleCurrentT1a() {
+  if (!activeGame || activeGame.roundNumber !== 1) return;
+  const current = activeGame.playOrder[activeGame.seatIndex];
+  current.t1a = !current.t1a;
+  renderPhaseTracker();
+}
+function openDataModal() {
+  if (!activeGame) return;
+  renderTurnTimes();
+  renderElimSessionList();
+  document.getElementById('dataModal').classList.add('active');
+}
+function closeDataModal() { document.getElementById('dataModal').classList.remove('active'); }
+document.getElementById('dataModal').addEventListener('click', (e) => { if (e.target.id === 'dataModal') closeDataModal(); });
 
 function closeTurnSegment() {
   if (!activeGame) return;
@@ -1833,7 +1899,6 @@ function addGameSetupRow() {
       <div><label>Deck</label><select class="gs-deck-select"></select></div>
     </div>
     <label><input type="checkbox" class="gs-any-deck" onchange="refreshGsDeckOptions(this.closest('.participant-card'))" style="width:auto;display:inline-block;margin-right:6px;"> Borrowing a deck (show all decks)</label>
-    <label class="t1a-check" title="Turn 1 Advantage"><input type="checkbox" class="gs-t1a-input"> T1A</label>
   `;
   wrap.appendChild(div);
   refreshGsSelects();
@@ -1885,7 +1950,7 @@ function startGame() {
     const playerId = row.querySelector('.gs-player-select').value;
     const deckId = row.querySelector('.gs-deck-select').value;
     if (!playerId || !deckId) { notice.textContent = 'Every seat needs a player and a deck.'; return; }
-    playOrder.push({ playerId, deckId, t1a: row.querySelector('.gs-t1a-input').checked, eliminated: false, life: setupLife });
+    playOrder.push({ playerId, deckId, t1a: false, eliminated: false, life: setupLife });
   }
   activeGame = { playOrder, seatIndex: 0, roundNumber: 1, eliminations: [], startingLife: setupLife };
   turnTimes = {};
@@ -1978,8 +2043,15 @@ function renderPhaseTracker() {
   const currentPlayer = DATA.players.find(p => p.id === current.playerId);
   const currentDeck = DATA.decks.find(d => d.id === current.deckId);
   document.getElementById('nowPlayingName').textContent = currentPlayer ? currentPlayer.name : '—';
-  document.getElementById('nowPlayingDeck').textContent =
-    `${currentDeck ? currentDeck.name : ''}${current.t1a ? ' · T1A' : ''}`;
+  document.getElementById('nowPlayingDeck').textContent = currentDeck ? currentDeck.name : '';
+
+  const t1aBtn = document.getElementById('npT1aBtn');
+  if (activeGame.roundNumber === 1) {
+    t1aBtn.style.display = 'inline-block';
+    t1aBtn.classList.toggle('active', current.t1a);
+  } else {
+    t1aBtn.style.display = 'none';
+  }
 
   document.getElementById('gameRoster').innerHTML = activeGame.playOrder.map((p, i) => {
     const player = DATA.players.find(x => x.id === p.playerId);
