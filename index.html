@@ -441,6 +441,9 @@
 
   <!-- LOG GAME -->
   <section class="view active" id="view-log">
+    <div class="notice" id="editGameBanner" style="display:none; color: var(--danger);">
+      Editing a previously logged game — <button class="icon-link" onclick="cancelEditGame()">cancel edit</button>
+    </div>
     <div class="panel">
       <h2>Game details</h2>
       <div class="row">
@@ -451,7 +454,7 @@
     </div>
     <div id="participantsWrap"></div>
     <button class="btn ghost" onclick="addParticipantRow()">+ Add participant</button>
-    <div style="margin-top:16px;"><button class="btn" onclick="submitGame()">Save game</button></div>
+    <div style="margin-top:16px;"><button class="btn" onclick="submitGame()" id="saveGameBtn">Save game</button></div>
     <div class="notice" id="logNotice"></div>
   </section>
 
@@ -606,6 +609,8 @@
     <div class="modal-sub" id="gdSub"></div>
     <div id="gdBody"></div>
     <div style="margin-top:16px; border-top:1px solid var(--line); padding-top:14px;">
+      <button class="icon-link" onclick="editGame()">edit this game (admin)</button>
+      <span style="color: var(--paper-dim2); margin: 0 6px;">·</span>
       <button class="icon-link" onclick="deleteGame()">delete this game (admin)</button>
     </div>
   </div>
@@ -704,12 +709,13 @@
 let DATA = { players: [], decks: [], games: [] };
 // The pod's shared backend — hardcoded so the app connects automatically.
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
-const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzDrgu6rjyUAw2wRqrG0twh3nfY5KNXGkpLMzmjFeodiLAgEbzyU35gsjUYDiIlag3O/exec';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyS_c-i67HO7Dpb8RHhljkZYo_Qg6Sg7frQ3ntg2kHZ_svE0M4vWsdBNk8f76QWGpyO/exec';
 
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
 let activeDeckId = null;
 let activeGameId = null;
+let editingGameId = null;
 let sortState = { key: 'winpct', dir: 'desc' };
 let boardBracketFilter = 'all';
 let boardColorFilter = [];
@@ -1050,6 +1056,70 @@ function addParticipantRow() {
   wrap.appendChild(div);
   refreshParticipantSelects();
 }
+function populateParticipantRow(rowId, pt) {
+  const row = document.getElementById(rowId);
+  row.querySelector('.pl-select').value = pt.playerId;
+  row.querySelector('.deck-select').value = pt.deckId;
+  if (pt.pilotId && pt.pilotId !== pt.playerId) {
+    row.querySelector('.pilot-override').checked = true;
+    togglePilot(rowId);
+    row.querySelector('.alt-pl-select').value = pt.pilotId;
+  }
+  row.querySelector('.seat-input').value = pt.seat || '';
+  if (pt.t1sr) {
+    const chk = row.querySelector('.t1sr-check-input');
+    chk.checked = true;
+    chk.closest('.t1sr-check').classList.add('checked');
+  }
+  row.querySelector('.outcome-select').value = pt.outcome;
+  if (pt.threatenedWin) {
+    row.querySelector('.threatened-check').checked = true;
+    row.querySelector('.threatened-turn-input').value = pt.threatenedTurn || '';
+  }
+  toggleThreatened(rowId);
+  (pt.eliminations || []).forEach(el => {
+    addKillRow(rowId);
+    const kills = row.querySelectorAll('.kill');
+    const last = kills[kills.length - 1];
+    last.querySelector('.kill-eliminated-select').value = el.eliminatedPlayerId;
+    last.querySelector('.kill-turn').value = el.turn;
+  });
+}
+function editGame() {
+  if (!activeGameId) return;
+  const code = window.prompt('Enter admin code to edit this game:');
+  if (code === null) return;
+  if (code !== 'Magic') { alert('Incorrect admin code.'); return; }
+  const g = DATA.games.find(x => x.id === activeGameId);
+  if (!g) return;
+  editingGameId = g.id;
+  closeGameDetailModal();
+
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === 'log'));
+  document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-log'));
+
+  document.getElementById('gameDate').value = g.date;
+  document.getElementById('gameEndTurn').value = g.endTurn;
+  document.getElementById('participantsWrap').innerHTML = '';
+  participantRowCount = 0;
+  g.participants.forEach(pt => {
+    addParticipantRow();
+    populateParticipantRow('row_' + participantRowCount, pt);
+  });
+  refreshEditGameBanner();
+}
+function cancelEditGame() {
+  editingGameId = null;
+  document.getElementById('participantsWrap').innerHTML = '';
+  document.getElementById('gameDate').value = '';
+  document.getElementById('gameEndTurn').value = '';
+  participantRowCount = 0;
+  refreshEditGameBanner();
+}
+function refreshEditGameBanner() {
+  document.getElementById('editGameBanner').style.display = editingGameId ? 'block' : 'none';
+  document.getElementById('saveGameBtn').textContent = editingGameId ? 'Save changes' : 'Save game';
+}
 function refreshParticipantSelects() {
   const playerOpts = DATA.players.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
   const deckOpts = DATA.decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.edition})</option>`).join('');
@@ -1130,16 +1200,21 @@ async function submitGame() {
   if (pendingPlayData.turnTimes) extras.turnTimes = pendingPlayData.turnTimes;
   if (pendingPlayData.finalLife) extras.finalLife = pendingPlayData.finalLife;
   if (pendingPlayData.finalPoison) extras.finalPoison = pendingPlayData.finalPoison;
-  const payload = { id: uid('g'), date, endTurn, playerCount: participants.length, participants };
+  const payload = { id: editingGameId || uid('g'), date, endTurn, playerCount: participants.length, participants };
   if (Object.keys(extras).length) payload.extras = extras;
-  const result = await apiPost('logGame', payload);
+  const action = editingGameId ? 'updateGame' : 'logGame';
+  const wasEditing = !!editingGameId;
+  const result = await apiPost(action, payload);
   if (result && result.ok) {
-    notice.textContent = Object.keys(extras).length ? 'Game saved (play data attached).' : 'Game saved.';
+    notice.textContent = wasEditing ? 'Game updated.' : (Object.keys(extras).length ? 'Game saved (play data attached).' : 'Game saved.');
     document.getElementById('participantsWrap').innerHTML = '';
+    document.getElementById('gameDate').value = '';
     document.getElementById('gameEndTurn').value = '';
     participantRowCount = 0;
     pendingPlayData = { turnTimes: null, finalLife: null, finalPoison: null };
     renderPendingPlayNotice();
+    editingGameId = null;
+    refreshEditGameBanner();
   }
 }
 
