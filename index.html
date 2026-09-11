@@ -437,6 +437,7 @@
         <div class="phase-quick-actions">
           <button class="btn ghost small" onclick="endTurnNow()">⏭ End turn</button>
           <button class="btn ghost small" onclick="openEliminateModal()">✕ Eliminate a player</button>
+          <button class="btn small" onclick="openGameWonModal()">🏆 Game won</button>
         </div>
 
         <div class="phase-stepper" id="phaseStepper"></div>
@@ -624,6 +625,17 @@
       </div>
     </div>
   </section>
+
+<div class="modal-backdrop" id="gameWonModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeGameWonModal()">close ×</button>
+    <h3>Who won?</h3>
+    <div class="modal-sub">Sends this game to Log Game, pre-filled, for you to review before saving.</div>
+    <label>Winner</label>
+    <select id="gameWonSelect"></select>
+    <button class="btn small" onclick="confirmGameWon()">Confirm winner</button>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="eliminateModal">
   <div class="modal">
@@ -1517,6 +1529,7 @@ function addGameSetupRow() {
       <div><label>Player</label><select class="gs-player-select" onchange="syncGsDeckDefault(this)"></select></div>
       <div><label>Deck</label><select class="gs-deck-select"></select></div>
     </div>
+    <label><input type="checkbox" class="gs-any-deck" onchange="refreshGsDeckOptions(this.closest('.participant-card'))" style="width:auto;display:inline-block;margin-right:6px;"> Borrowing a deck (show all decks)</label>
     <label class="t1a-check" title="Turn 1 Advantage"><input type="checkbox" class="gs-t1a-input"> T1A</label>
   `;
   wrap.appendChild(div);
@@ -1525,14 +1538,21 @@ function addGameSetupRow() {
 }
 function refreshGsSelects() {
   const playerOpts = DATA.players.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-  const deckOpts = DATA.decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.edition})</option>`).join('');
   document.querySelectorAll('.gs-player-select').forEach(sel => { const c = sel.value; sel.innerHTML = playerOpts; if (c) sel.value = c; });
-  document.querySelectorAll('.gs-deck-select').forEach(sel => { const c = sel.value; sel.innerHTML = deckOpts; if (c) sel.value = c; });
+  document.querySelectorAll('#gameSetupRows .participant-card').forEach(row => refreshGsDeckOptions(row));
+}
+function refreshGsDeckOptions(row) {
+  const playerId = row.querySelector('.gs-player-select').value;
+  const showAll = row.querySelector('.gs-any-deck').checked;
+  const deckSel = row.querySelector('.gs-deck-select');
+  const current = deckSel.value;
+  const decks = showAll ? DATA.decks : DATA.decks.filter(d => d.playerId === playerId);
+  deckSel.innerHTML = decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.edition})</option>`).join('');
+  if (current && decks.some(d => d.id === current)) deckSel.value = current;
 }
 function syncGsDeckDefault(sel) {
   const row = sel.closest('.participant-card');
-  const deck = DATA.decks.find(d => d.playerId === sel.value);
-  if (deck) row.querySelector('.gs-deck-select').value = deck.id;
+  refreshGsDeckOptions(row);
 }
 function moveSetupRow(id, dir) {
   const wrap = document.getElementById('gameSetupRows');
@@ -1698,6 +1718,67 @@ function confirmEliminate() {
   renderPhaseTracker();
 }
 document.getElementById('eliminateModal').addEventListener('click', (e) => { if (e.target.id === 'eliminateModal') closeEliminateModal(); });
+
+// ---------- GAME WON — hands the active session off to Log Game ----------
+function openGameWonModal() {
+  if (!activeGame) return;
+  const remaining = activeGame.playOrder.filter(p => !p.eliminated);
+  if (!remaining.length) { alert('Everyone is eliminated — no one left to mark as the winner.'); return; }
+  document.getElementById('gameWonSelect').innerHTML = remaining.map(p => {
+    const player = DATA.players.find(x => x.id === p.playerId);
+    return `<option value="${p.playerId}">${escapeHtml(player ? player.name : '—')}</option>`;
+  }).join('');
+  document.getElementById('gameWonModal').classList.add('active');
+}
+function closeGameWonModal() { document.getElementById('gameWonModal').classList.remove('active'); }
+function confirmGameWon() {
+  const winnerId = document.getElementById('gameWonSelect').value;
+  if (!winnerId) return;
+  closeGameWonModal();
+  sendActiveGameToLog(winnerId);
+}
+function sendActiveGameToLog(winnerId) {
+  const g = activeGame;
+
+  // Carry turn times captured this session along automatically too.
+  const filtered = {};
+  Object.keys(turnTimes).forEach(pid => { if (DATA.players.some(p => p.id === pid)) filtered[pid] = turnTimes[pid]; });
+  if (Object.keys(filtered).length) { pendingPlayData.turnTimes = filtered; }
+
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === 'log'));
+  document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-log'));
+
+  document.getElementById('gameDate').value = todayStr();
+  document.getElementById('gameEndTurn').value = g.roundNumber;
+  document.getElementById('participantsWrap').innerHTML = '';
+  participantRowCount = 0;
+
+  g.playOrder.forEach((p, i) => {
+    const deck = DATA.decks.find(d => d.id === p.deckId);
+    const elims = g.eliminations
+      .filter(e => e.eliminatorId === p.playerId)
+      .map(e => ({ eliminatedPlayerId: e.eliminatedPlayerId, turn: e.turn }));
+    const pt = {
+      playerId: p.playerId, deckId: p.deckId, pilotId: p.playerId,
+      outcome: p.playerId === winnerId ? 'win' : 'loss',
+      threatenedWin: false, threatenedTurn: null,
+      seat: i + 1, t1a: p.t1a, eliminations: elims,
+      deckEdition: deck ? deck.edition : null
+    };
+    addParticipantRow();
+    populateParticipantRow('row_' + participantRowCount, pt);
+  });
+
+  activeGame = null;
+  document.getElementById('gameSetupPanel').style.display = 'block';
+  document.getElementById('activeGamePanel').style.display = 'none';
+  document.getElementById('gameSetupRows').innerHTML = '';
+  document.getElementById('gameSetupNotice').textContent = '';
+  gsRowCount = 0;
+
+  renderPendingPlayNotice();
+}
+document.getElementById('gameWonModal').addEventListener('click', (e) => { if (e.target.id === 'gameWonModal') closeGameWonModal(); });
 
 function attachTurnTimesToLog() {
   const filtered = {};
