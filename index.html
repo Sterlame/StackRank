@@ -133,7 +133,7 @@
     color: var(--gold); letter-spacing: 0.02em; margin-bottom: 8px;
     padding-bottom: 6px; border-bottom: 1px solid var(--line-soft);
   }
-  #boardTable { min-width: 620px; }
+  #boardTable { min-width: 360px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--line-soft); font-size: 0.85rem; font-weight: 500; }
   th { font-family: ui-monospace, monospace; font-size: 0.62rem; color: var(--paper-dim2); letter-spacing: 0.03em; font-weight: 700; }
@@ -205,6 +205,7 @@
   .hof-shame .hof-value { color: var(--danger); }
   .hof-sub { color: var(--paper-dim2); font-weight: 500; font-size: 0.78rem; }
   .power-cell { color: var(--gold); font-weight: 800; font-size: 0.95rem; }
+  .color-banner { height: 5px; width: 100%; max-width: 160px; border-radius: 1px; margin-bottom: 5px; }
 
   @media (max-width: 640px) {
     .app { padding: 20px 12px 56px; }
@@ -881,6 +882,17 @@ let boardColorFilter = [];
 let connectionState = 'unconfigured'; // unconfigured | connecting | connected | error
 
 const COLOR_PIP = { W: '⚪', U: '🔵', B: '⚫', R: '🔴', G: '🟢' };
+const COLOR_HEX = { W: '#e8dfc0', U: '#3b82c4', B: '#6b5b95', R: '#c0392b', G: '#2e8b57' };
+function colorBannerStyle(colors) {
+  if (!colors || !colors.length) return 'background: var(--line-soft);';
+  if (colors.length === 1) return `background: ${COLOR_HEX[colors[0]]};`;
+  const n = colors.length;
+  const stops = colors.map((c, i) => {
+    const start = (i / n * 100).toFixed(2), end = ((i + 1) / n * 100).toFixed(2);
+    return `${COLOR_HEX[c]} ${start}%, ${COLOR_HEX[c]} ${end}%`;
+  }).join(', ');
+  return `background: linear-gradient(to right, ${stops});`;
+}
 
 // Local, per-device settings (theme + backend URL). Falls back gracefully
 // wherever localStorage isn't available (e.g. this preview sandbox) —
@@ -1064,7 +1076,7 @@ function renderDecks() {
   function deckRowHtml(d) {
     const cmd = commanderLine(d);
     return `<tr class="clickable" onclick="if(event.target.tagName!=='BUTTON') openDeckModal('${d.id}')">
-      <td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
+      <td><div class="color-banner" style="${colorBannerStyle(d.colors)}"></div>${escapeHtml(d.name)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono">B${d.bracket}</td>
       <td class="num"><button class="remove-link" onclick="removeDeck('${d.id}')">remove</button></td>
     </tr>`;
@@ -1117,7 +1129,7 @@ function renderMyDecks() {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(d.id); };
-    tr.innerHTML = `<td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
+    tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(d.colors)}"></div>${escapeHtml(d.name)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono">B${d.bracket}</td><td class="num mono">${gp}</td><td class="num mono" style="color:var(--sage)">${winPct}</td>`;
     tbody.appendChild(tr);
   });
@@ -1518,7 +1530,7 @@ function renderLeaderboard() {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(r.deck.id); };
-    tr.innerHTML = `<td>${escapeHtml(r.deck.name)} ${pipsFor(r.deck.colors)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
+    tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(r.deck.colors)}"></div>${escapeHtml(r.deck.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono power-cell">${r.power}</td>
       <td class="num mono" style="color:var(--sage)">${winPct}%</td>
       <td class="num mono">${avgTurn}</td>
