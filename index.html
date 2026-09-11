@@ -221,8 +221,8 @@
     .turn-bar { flex-direction: column; align-items: stretch; }
     .turn-bar select { width: 100%; }
 
-    .phase-name-big { font-size: 1.7rem; }
-    .phase-banner-panel { padding: 28px 14px; }
+    .phase-name-big { font-size: 1.3rem; }
+    .phase-banner-panel { padding: 16px 12px; }
     .phase-big-btn { padding: 16px 8px; font-size: 0.9rem; }
     .life-number { font-size: 2.1rem; }
     .life-btn { width: 42px; height: 42px; }
@@ -277,15 +277,15 @@
 
   .phase-banner-panel {
     background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--gold-dim);
-    padding: 38px 16px; text-align: center; margin-bottom: 14px; transition: border-top-color 0.2s;
+    padding: 20px 14px; text-align: center; margin-bottom: 10px; transition: border-top-color 0.2s;
   }
   .phase-banner-panel.group-beginning { border-top-color: var(--sage); }
   .phase-banner-panel.group-main { border-top-color: var(--gold); }
   .phase-banner-panel.group-combat { border-top-color: var(--danger); }
   .phase-banner-panel.group-ending { border-top-color: var(--paper-dim2); }
-  .phase-group-label { font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.7rem; letter-spacing: 0.04em; color: var(--paper-dim2); margin-bottom: 10px; }
-  .phase-name-big { font-size: 2.2rem; font-weight: 800; margin: 0 0 12px; line-height: 1.1; }
-  .phase-desc { color: var(--paper-dim); font-size: 0.92rem; line-height: 1.5; max-width: 460px; margin: 0 auto; }
+  .phase-group-label { font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.65rem; letter-spacing: 0.04em; color: var(--paper-dim2); margin-bottom: 6px; }
+  .phase-name-big { font-size: 1.5rem; font-weight: 800; margin: 0 0 6px; line-height: 1.1; }
+  .phase-desc { color: var(--paper-dim); font-size: 0.82rem; line-height: 1.45; max-width: 440px; margin: 0 auto; }
 
   .phase-big-nav { display: flex; gap: 10px; margin-bottom: 18px; }
   .phase-big-btn {
@@ -321,6 +321,26 @@
   button.roster-chip:hover { border-color: var(--gold-dim); color: var(--paper); }
   .roster-chip.current { border-color: var(--gold); color: var(--gold); }
   .roster-chip.eliminated { text-decoration: line-through; opacity: 0.4; cursor: default; }
+
+  .play-toggle-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .play-toggle-chip {
+    border: 1px solid var(--line); background: none; color: var(--paper-dim2);
+    font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.66rem; letter-spacing: 0.02em;
+    padding: 7px 13px; cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .play-toggle-chip:hover { border-color: var(--gold-dim); color: var(--paper); }
+  .play-toggle-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(194,155,98,0.08); }
+
+  .life-tiles { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+  .life-tile {
+    flex: 0 0 auto; min-width: 84px; border: 1px solid var(--line); background: var(--panel);
+    padding: 10px 12px; text-align: center; cursor: pointer; transition: border-color 0.15s;
+  }
+  .life-tile:hover { border-color: var(--gold-dim); }
+  .life-tile.current { border-color: var(--gold); }
+  .life-tile.eliminated { opacity: 0.35; text-decoration: line-through; cursor: default; }
+  .life-tile-name { font-family: ui-monospace, monospace; font-size: 0.62rem; font-weight: 700; color: var(--paper-dim2); margin-bottom: 4px; white-space: nowrap; }
+  .life-tile-num { font-size: 1.6rem; font-weight: 800; }
   .life-sheet-row { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .collapse-toggle { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
   .collapse-arrow { color: var(--gold); font-size: 0.7rem; }
@@ -498,20 +518,30 @@
           <div class="np-deck" id="nowPlayingDeck"></div>
         </div>
 
-        <div class="game-roster" id="gameRoster"></div>
-
-        <div class="phase-banner-panel" id="phaseBannerPanel">
-          <div class="phase-group-label" id="phaseGroupLabel"></div>
-          <h2 class="phase-name-big" id="phaseName"></h2>
-          <p class="phase-desc" id="phaseDesc"></p>
+        <div class="play-toggle-row">
+          <button type="button" class="play-toggle-chip" id="togglePhasesBtn" onclick="togglePhasesDisplay()">Phases</button>
+          <button type="button" class="play-toggle-chip" id="toggleLifeBtn" onclick="toggleLifeDisplay()">Life totals</button>
+          <button class="icon-link" onclick="endGame()" style="margin-left:auto;">end game (discard)</button>
         </div>
 
-        <div class="phase-stepper" id="phaseStepper"></div>
+        <div class="game-roster" id="gameRoster"></div>
+
+        <div id="lifeTilesWrap" style="display:none;">
+          <div class="life-tiles" id="lifeTiles"></div>
+        </div>
+
+        <div id="phasesWrap" style="display:none;">
+          <div class="phase-banner-panel" id="phaseBannerPanel">
+            <div class="phase-group-label" id="phaseGroupLabel"></div>
+            <h2 class="phase-name-big" id="phaseName"></h2>
+            <p class="phase-desc" id="phaseDesc"></p>
+          </div>
+          <div class="phase-stepper" id="phaseStepper"></div>
+        </div>
 
         <div class="secondary-actions">
           <button class="btn btn-eliminate" onclick="openEliminateModal()">✕ Eliminate a player</button>
           <button class="btn btn-won" onclick="openGameWonModal()">🏆 Game won</button>
-          <button class="icon-link" onclick="endGame()">end game (discard)</button>
         </div>
 
         <div class="panel compact" style="margin-top:14px;">
@@ -530,7 +560,7 @@
   <div id="playActionBar" class="play-action-bar" style="display:none;">
     <div class="pab-undo" id="pabUndo"></div>
     <div class="pab-main">
-      <button class="pab-btn pab-prev" onclick="prevPhase()">← Prev</button>
+      <button class="pab-btn pab-prev" id="pabPrevBtn" onclick="prevPhase()">← Prev</button>
       <button class="pab-btn pab-endturn" onclick="endTurnNow()">End turn ⏭</button>
       <button class="pab-btn pab-next" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
     </div>
@@ -1745,6 +1775,28 @@ let gsRowCount = 0;
 let turnStartTs = null;
 let turnTimes = {}; // { playerId: totalSeconds }
 
+// Phases and Life are optional displays on top of the always-on turn/elim
+// tracking — remembered per device so regulars don't have to re-toggle every game.
+let showPhases = localGet('stackrank-show-phases') === '1';
+let showLife = localGet('stackrank-show-life') === '1';
+function togglePhasesDisplay() { showPhases = !showPhases; localSet('stackrank-show-phases', showPhases ? '1' : '0'); applyPlayDisplayToggles(); }
+function toggleLifeDisplay() { showLife = !showLife; localSet('stackrank-show-life', showLife ? '1' : '0'); applyPlayDisplayToggles(); }
+function applyPlayDisplayToggles() {
+  const phasesBtn = document.getElementById('togglePhasesBtn');
+  const lifeBtn = document.getElementById('toggleLifeBtn');
+  if (phasesBtn) phasesBtn.classList.toggle('active', showPhases);
+  if (lifeBtn) lifeBtn.classList.toggle('active', showLife);
+  const phasesWrap = document.getElementById('phasesWrap');
+  const lifeWrap = document.getElementById('lifeTilesWrap');
+  if (phasesWrap) phasesWrap.style.display = showPhases ? 'block' : 'none';
+  if (lifeWrap) lifeWrap.style.display = showLife ? 'block' : 'none';
+  const prevBtn = document.getElementById('pabPrevBtn');
+  const nextBtn = document.getElementById('nextPhaseBtn');
+  if (prevBtn) prevBtn.style.display = showPhases ? '' : 'none';
+  if (nextBtn) nextBtn.style.display = showPhases ? '' : 'none';
+  renderPhaseTracker();
+}
+
 function closeTurnSegment() {
   if (!activeGame) return;
   const pid = activeGame.playOrder[activeGame.seatIndex].playerId;
@@ -1843,7 +1895,7 @@ function startGame() {
   requestWakeLock();
   document.getElementById('gameSetupPanel').style.display = 'none';
   document.getElementById('activeGamePanel').style.display = 'block';
-  renderPhaseTracker();
+  applyPlayDisplayToggles();
   window.scrollTo(0, 0);
 }
 function endGame() {
@@ -1934,11 +1986,14 @@ function renderPhaseTracker() {
     const cls = ['roster-chip'];
     if (i === activeGame.seatIndex && !p.eliminated) cls.push('current');
     if (p.eliminated) cls.push('eliminated');
-    const label = `${i + 1}. ${escapeHtml(player ? player.name : '—')} — ${p.life}`;
-    return p.eliminated
-      ? `<span class="${cls.join(' ')}">${label}</span>`
-      : `<button type="button" class="${cls.join(' ')}" onclick="openLifeSheet('${p.playerId}')">${label}</button>`;
+    const label = `${i + 1}. ${escapeHtml(player ? player.name : '—')}`;
+    if (p.eliminated) return `<span class="${cls.join(' ')}">${label}</span>`;
+    return showLife
+      ? `<button type="button" class="${cls.join(' ')}" onclick="openLifeSheet('${p.playerId}')">${label}</button>`
+      : `<span class="${cls.join(' ')}">${label}</span>`;
   }).join('');
+
+  if (showLife) renderLifeTiles();
 
   const stepper = document.getElementById('phaseStepper');
   let html = '';
@@ -2051,6 +2106,20 @@ document.getElementById('eliminateModal').addEventListener('click', (e) => { if 
 
 // ---------- LIFE SHEET — tap a roster chip to adjust just that player's life ----------
 let lifeSheetPlayerId = null;
+function renderLifeTiles() {
+  const wrap = document.getElementById('lifeTiles');
+  if (!wrap || !activeGame) return;
+  wrap.innerHTML = activeGame.playOrder.map((p, i) => {
+    const player = DATA.players.find(x => x.id === p.playerId);
+    const cls = ['life-tile'];
+    if (i === activeGame.seatIndex && !p.eliminated) cls.push('current');
+    if (p.eliminated) cls.push('eliminated');
+    return `<div class="${cls.join(' ')}" ${p.eliminated ? '' : `onclick="openLifeSheet('${p.playerId}')"`}>
+      <div class="life-tile-name">${escapeHtml(player ? player.name : '—')}</div>
+      <div class="life-tile-num">${p.life}</div>
+    </div>`;
+  }).join('');
+}
 function openLifeSheet(playerId) {
   if (!activeGame) return;
   const p = activeGame.playOrder.find(x => x.playerId === playerId);
