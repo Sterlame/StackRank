@@ -125,6 +125,8 @@
   button.btn.small { padding: 6px 12px; font-size: 0.65rem; }
   button.btn.danger { background: var(--danger); color: var(--paper); }
 
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #boardTable { min-width: 620px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--line-soft); font-size: 0.85rem; font-weight: 500; }
   th { font-family: ui-monospace, monospace; font-size: 0.62rem; color: var(--paper-dim2); letter-spacing: 0.03em; font-weight: 700; }
@@ -174,6 +176,33 @@
   }
   .color-filter-pip:hover { opacity: 0.8; }
   .color-filter-pip.active { opacity: 1; border-color: var(--gold); }
+
+  @media (max-width: 640px) {
+    .app { padding: 20px 12px 56px; }
+    h1 { font-size: 1.4rem; }
+    nav button { padding: 9px 12px; font-size: 0.72rem; }
+    .subnav button { padding: 6px 10px; }
+
+    /* Two-column form rows become one column — full-width inputs are much
+       easier to tap and type into on a phone keyboard. */
+    .row { flex-direction: column; gap: 0; }
+    .life-setup-row { flex-direction: column; align-items: stretch; }
+    .life-setup-row select, .life-setup-row input { min-width: 0; }
+    .turn-bar { flex-direction: column; align-items: stretch; }
+    .turn-bar select { width: 100%; }
+
+    .phase-name-big { font-size: 1.7rem; }
+    .phase-banner-panel { padding: 28px 14px; }
+    .phase-big-btn { padding: 16px 8px; font-size: 0.9rem; }
+    .life-number { font-size: 2.1rem; }
+    .life-btn { width: 42px; height: 42px; }
+    .life-grid { grid-template-columns: 1fr; }
+    .modal { padding: 18px; max-width: 100%; }
+    .filter-bar { gap: 8px; }
+    th, td { padding: 8px 6px; font-size: 0.8rem; }
+    .option-group { gap: 6px; }
+    .option-chip { padding: 7px 10px; }
+  }
 
   .modal-backdrop {
     display: none; position: fixed; inset: 0; background: rgba(10,10,11,0.72); backdrop-filter: blur(2px);
@@ -425,10 +454,12 @@
     </div>
     <div class="panel">
       <h2 id="myDecksHeading">Decks</h2>
-      <table id="myDecksTable">
-        <thead><tr><th>Deck</th><th class="num">Brkt</th><th class="num">GP</th><th class="num">Win%</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-scroll">
+        <table id="myDecksTable">
+          <thead><tr><th>Deck</th><th class="num">Brkt</th><th class="num">GP</th><th class="num">Win%</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
       <div class="empty" id="myDecksEmpty">No players registered yet.</div>
     </div>
   </section>
@@ -452,27 +483,29 @@
         </div>
         <button class="icon-link" onclick="clearBoardFilters()">clear</button>
       </div>
-      <table id="boardTable">
-        <thead>
-          <tr>
-            <th class="sortable" data-key="name" onclick="setSort('name')">Deck</th>
-            <th class="sortable" data-key="pilot" onclick="setSort('pilot')">Pilot</th>
-            <th class="num sortable" data-key="bracket" onclick="setSort('bracket')">Brkt</th>
-            <th class="num sortable" data-key="gp" onclick="setSort('gp')">GP</th>
-            <th class="num sortable" data-key="winpct" onclick="setSort('winpct')">Win%</th>
-            <th class="num sortable" data-key="avgTurn" onclick="setSort('avgTurn')">Avg Win Turn</th>
-            <th class="num sortable" data-key="threats" onclick="setSort('threats')">Threat</th>
-            <th class="num sortable" data-key="elims" onclick="setSort('elims')">Elims</th>
-            <th class="num sortable" data-key="elimRate" onclick="setSort('elimRate')">Elim/Game</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-scroll">
+        <table id="boardTable">
+          <thead>
+            <tr>
+              <th class="sortable" data-key="name" onclick="setSort('name')">Deck</th>
+              <th class="sortable" data-key="pilot" onclick="setSort('pilot')">Pilot</th>
+              <th class="num sortable" data-key="bracket" onclick="setSort('bracket')">Brkt</th>
+              <th class="num sortable" data-key="gp" onclick="setSort('gp')">GP</th>
+              <th class="num sortable" data-key="winpct" onclick="setSort('winpct')">Win%</th>
+              <th class="num sortable" data-key="avgTurn" onclick="setSort('avgTurn')">Avg Win Turn</th>
+              <th class="num sortable" data-key="threats" onclick="setSort('threats')">Threat</th>
+              <th class="num sortable" data-key="elims" onclick="setSort('elims')">Elims</th>
+              <th class="num sortable" data-key="elimRate" onclick="setSort('elimRate')">Elim/Game</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
       <div class="empty" id="boardEmpty">Log a game to populate the leaderboard.</div>
     </div>
     <div class="panel">
       <h2>Game log</h2>
-      <table id="gamesTable"><tbody></tbody></table>
+      <div class="table-scroll"><table id="gamesTable"><tbody></tbody></table></div>
       <div class="empty" id="gamesEmpty">No games logged yet.</div>
     </div>
   </section>
@@ -493,7 +526,7 @@
       </div>
       <div class="panel">
         <h2>Players</h2>
-        <table id="playersTable"><tbody></tbody></table>
+        <div class="table-scroll"><table id="playersTable"><tbody></tbody></table></div>
         <div class="empty" id="playersEmpty">No players registered yet.</div>
       </div>
     </div>
@@ -530,7 +563,7 @@
       </div>
       <div class="panel">
         <h2>Decks</h2>
-        <table id="decksTable"><tbody></tbody></table>
+        <div class="table-scroll"><table id="decksTable"><tbody></tbody></table></div>
         <div class="empty" id="decksEmpty">No decks registered yet.</div>
         <div class="status-line">Click a deck to view its edition history, edit it, or log upgrades.</div>
       </div>
