@@ -296,6 +296,16 @@
   .phase-pip.current { border-color: var(--gold); color: var(--ink); background: var(--gold); }
   .phase-pip.done { color: var(--sage); border-color: var(--line-soft); }
   .phase-group-gap { flex: none; width: 10px; }
+  .now-playing { flex: 1; font-weight: 700; font-size: 0.92rem; text-align: center; }
+  .turn-num-display { border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; }
+  .game-roster { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .roster-chip {
+    font-family: ui-monospace, monospace; font-size: 0.66rem; font-weight: 700;
+    padding: 5px 10px; border: 1px solid var(--line); color: var(--paper-dim2);
+  }
+  .roster-chip.current { border-color: var(--gold); color: var(--gold); }
+  .roster-chip.eliminated { text-decoration: line-through; opacity: 0.4; }
+  .phase-quick-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap; }
 
   .life-setup-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
   .life-setup-row:last-of-type { margin-bottom: 0; }
@@ -389,31 +399,56 @@
     </div>
 
     <div id="play-phasetracker">
-      <div class="panel compact turn-bar">
-        <div class="turn-bar-left">
-          <span class="turn-label">Turn</span>
-          <input id="turnNumberDisplay" class="turn-num" readonly>
+
+      <!-- SETUP -->
+      <div id="gameSetupPanel">
+        <div class="panel">
+          <h2>Start a game</h2>
+          <div id="gameSetupRows"></div>
+          <button class="btn ghost small" onclick="addGameSetupRow()">+ Add player</button>
+          <div style="margin-top:14px;"><button class="btn" onclick="startGame()">Start game</button></div>
+          <div class="notice" id="gameSetupNotice"></div>
         </div>
-        <select id="activePlayerSelect" onchange="setActivePlayer()"></select>
-        <button class="icon-link" onclick="resetTracker()">reset</button>
       </div>
 
-      <div class="phase-banner-panel" id="phaseBannerPanel">
-        <div class="phase-group-label" id="phaseGroupLabel"></div>
-        <h2 class="phase-name-big" id="phaseName"></h2>
-        <p class="phase-desc" id="phaseDesc"></p>
-      </div>
+      <!-- ACTIVE GAME -->
+      <div id="activeGamePanel" style="display:none;">
+        <div class="panel compact turn-bar">
+          <div class="turn-bar-left">
+            <span class="turn-label">Turn</span>
+            <span class="turn-num turn-num-display" id="turnNumberDisplay">1</span>
+          </div>
+          <div class="now-playing" id="nowPlayingDisplay"></div>
+          <button class="icon-link" onclick="endGame()">end game</button>
+        </div>
 
-      <div class="phase-big-nav">
-        <button class="phase-big-btn ghost" onclick="prevPhase()">← Prev</button>
-        <button class="phase-big-btn" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
-      </div>
+        <div class="game-roster" id="gameRoster"></div>
 
-      <div class="phase-stepper" id="phaseStepper"></div>
+        <div class="phase-banner-panel" id="phaseBannerPanel">
+          <div class="phase-group-label" id="phaseGroupLabel"></div>
+          <h2 class="phase-name-big" id="phaseName"></h2>
+          <p class="phase-desc" id="phaseDesc"></p>
+        </div>
 
-      <div class="panel compact" style="margin-top:14px;">
-        <div class="life-section-label"><span>Turn times this session</span><button class="icon-link" onclick="attachTurnTimesToLog()">attach to next log</button></div>
-        <div id="turnTimesList"></div>
+        <div class="phase-big-nav">
+          <button class="phase-big-btn ghost" onclick="prevPhase()">← Prev</button>
+          <button class="phase-big-btn" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
+        </div>
+        <div class="phase-quick-actions">
+          <button class="btn ghost small" onclick="endTurnNow()">⏭ End turn</button>
+          <button class="btn ghost small" onclick="openEliminateModal()">✕ Eliminate a player</button>
+        </div>
+
+        <div class="phase-stepper" id="phaseStepper"></div>
+
+        <div class="panel compact" style="margin-top:14px;">
+          <div class="life-section-label"><span>Turn times this session</span><button class="icon-link" onclick="attachTurnTimesToLog()">attach to next log</button></div>
+          <div id="turnTimesList"></div>
+        </div>
+        <div class="panel compact" style="margin-top:10px;">
+          <div class="life-section-label"><span>Eliminations this game</span></div>
+          <div id="elimSessionList"></div>
+        </div>
       </div>
     </div>
 
@@ -590,6 +625,20 @@
     </div>
   </section>
 
+<div class="modal-backdrop" id="eliminateModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEliminateModal()">close ×</button>
+    <h3>Eliminate a player</h3>
+    <label>Who was eliminated?</label>
+    <select id="elimTargetSelect"></select>
+    <label>Eliminated by</label>
+    <select id="elimBySelect"></select>
+    <label>Turn</label>
+    <input id="elimTurnInput" type="number" min="1">
+    <button class="btn small" onclick="confirmEliminate()">Confirm elimination</button>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="bracketInfoModal">
   <div class="modal">
     <button class="modal-close" onclick="closeBracketInfoModal()">close ×</button>
@@ -716,7 +765,7 @@
 let DATA = { players: [], decks: [], games: [] };
 // The pod's shared backend — hardcoded so the app connects automatically.
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
-const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx06X5mYvSNij9ehRGGnMkeW6LpXcIlisoEGCraMFpc39DVy-zEyj8jyZyM7L2f1zlr/exec';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwEueUNZf8Y8dkhzhC4u2X9ZNSwv05nlo2AJ19rAsg7c7pn_PWlIfMyPcmc4Gr8Z9sm/exec';
 
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
@@ -845,7 +894,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
     if (btn.dataset.view === 'board') renderLeaderboard();
     if (btn.dataset.view === 'mydecks') renderMyDecksPlayerSelect();
-    if (btn.dataset.view === 'play') { populateActivePlayerSelect(); renderPhaseTracker(); }
+    if (btn.dataset.view === 'play') { refreshGsSelects(); renderPhaseTracker(); }
     if (btn.dataset.view === 'log') renderPendingPlayNotice();
   });
 });
@@ -1388,7 +1437,7 @@ function escapeHtml(str) { const div = document.createElement('div'); div.textCo
 function renderAll() {
   renderPlayers(); populateDeckPlayerSelect(); renderDecks();
   renderMyDecksPlayerSelect(); renderLeaderboard(); refreshParticipantSelects();
-  populateActivePlayerSelect(); renderPhaseTracker();
+  refreshGsSelects(); renderPhaseTracker();
   populateAddExistingPlayerSelect(); renderLifeTotal();
 }
 
@@ -1428,15 +1477,17 @@ const PHASES = [
 ];
 
 let phaseIndex = 0;
-let turnNumber = 1;
-let activePlayerId = '';
+let activeGame = null; // { playOrder: [{playerId,deckId,t1a,eliminated}], seatIndex, roundNumber, eliminations }
+let gsRowCount = 0;
 let turnStartTs = null;
 let turnTimes = {}; // { playerId: totalSeconds }
 
 function closeTurnSegment() {
-  if (turnStartTs !== null && activePlayerId) {
+  if (!activeGame) return;
+  const pid = activeGame.playOrder[activeGame.seatIndex].playerId;
+  if (turnStartTs !== null) {
     const elapsed = Math.round((Date.now() - turnStartTs) / 1000);
-    turnTimes[activePlayerId] = (turnTimes[activePlayerId] || 0) + elapsed;
+    turnTimes[pid] = (turnTimes[pid] || 0) + elapsed;
   }
   turnStartTs = Date.now();
 }
@@ -1445,25 +1496,104 @@ function formatSeconds(s) {
   return m + ':' + String(sec).padStart(2, '0');
 }
 
-function populateActivePlayerSelect() {
-  const sel = document.getElementById('activePlayerSelect');
-  if (!sel) return;
-  const current = sel.value;
-  sel.innerHTML = '<option value="">—</option>' + DATA.players.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-  if (current) sel.value = current;
-  activePlayerId = sel.value;
-  if (turnStartTs === null) turnStartTs = Date.now();
+// ---------- GAME SETUP ----------
+function addGameSetupRow() {
+  gsRowCount++;
+  const id = 'gsrow_' + gsRowCount;
+  const wrap = document.getElementById('gameSetupRows');
+  const div = document.createElement('div');
+  div.className = 'participant-card';
+  div.id = id;
+  div.innerHTML = `
+    <div class="card-head">
+      <span class="badge mono">Seat</span>
+      <div>
+        <button class="icon-link" onclick="moveSetupRow('${id}',-1)">↑</button>
+        <button class="icon-link" onclick="moveSetupRow('${id}',1)">↓</button>
+        <button class="remove-link" onclick="document.getElementById('${id}').remove(); renumberSetupRows();">remove</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Player</label><select class="gs-player-select" onchange="syncGsDeckDefault(this)"></select></div>
+      <div><label>Deck</label><select class="gs-deck-select"></select></div>
+    </div>
+    <label class="t1a-check" title="Turn 1 Advantage"><input type="checkbox" class="gs-t1a-input"> T1A</label>
+  `;
+  wrap.appendChild(div);
+  refreshGsSelects();
+  renumberSetupRows();
 }
-function setActivePlayer() {
-  closeTurnSegment(); // credits elapsed time to whoever was active before this change
-  activePlayerId = document.getElementById('activePlayerSelect').value;
+function refreshGsSelects() {
+  const playerOpts = DATA.players.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  const deckOpts = DATA.decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.edition})</option>`).join('');
+  document.querySelectorAll('.gs-player-select').forEach(sel => { const c = sel.value; sel.innerHTML = playerOpts; if (c) sel.value = c; });
+  document.querySelectorAll('.gs-deck-select').forEach(sel => { const c = sel.value; sel.innerHTML = deckOpts; if (c) sel.value = c; });
+}
+function syncGsDeckDefault(sel) {
+  const row = sel.closest('.participant-card');
+  const deck = DATA.decks.find(d => d.playerId === sel.value);
+  if (deck) row.querySelector('.gs-deck-select').value = deck.id;
+}
+function moveSetupRow(id, dir) {
+  const wrap = document.getElementById('gameSetupRows');
+  const row = document.getElementById(id);
+  if (dir === -1 && row.previousElementSibling) wrap.insertBefore(row, row.previousElementSibling);
+  else if (dir === 1 && row.nextElementSibling) wrap.insertBefore(row.nextElementSibling, row);
+  renumberSetupRows();
+}
+function renumberSetupRows() {
+  document.querySelectorAll('#gameSetupRows .participant-card').forEach((row, i) => {
+    row.querySelector('.badge').textContent = 'Seat ' + (i + 1);
+  });
+}
+function startGame() {
+  const notice = document.getElementById('gameSetupNotice');
+  const rows = document.querySelectorAll('#gameSetupRows .participant-card');
+  if (rows.length < 2) { notice.textContent = 'Add at least two players.'; return; }
+  const playOrder = [];
+  for (const row of rows) {
+    const playerId = row.querySelector('.gs-player-select').value;
+    const deckId = row.querySelector('.gs-deck-select').value;
+    if (!playerId || !deckId) { notice.textContent = 'Every seat needs a player and a deck.'; return; }
+    playOrder.push({ playerId, deckId, t1a: row.querySelector('.gs-t1a-input').checked, eliminated: false });
+  }
+  activeGame = { playOrder, seatIndex: 0, roundNumber: 1, eliminations: [] };
+  turnTimes = {};
+  phaseIndex = 0;
+  turnStartTs = Date.now();
+  document.getElementById('gameSetupPanel').style.display = 'none';
+  document.getElementById('activeGamePanel').style.display = 'block';
   renderPhaseTracker();
 }
+function endGame() {
+  if (!confirm('End this game and return to setup? Any turn times already logged stay available to attach.')) return;
+  activeGame = null;
+  document.getElementById('gameSetupPanel').style.display = 'block';
+  document.getElementById('activeGamePanel').style.display = 'none';
+  document.getElementById('gameSetupRows').innerHTML = '';
+  document.getElementById('gameSetupNotice').textContent = '';
+  gsRowCount = 0;
+}
 
+// ---------- PHASE TRACKER (active game) ----------
 function renderPhaseTracker() {
   const turnEl = document.getElementById('turnNumberDisplay');
-  if (!turnEl) return; // view not in DOM yet
-  turnEl.value = turnNumber;
+  if (!turnEl || !activeGame) return; // no active game / view not in DOM yet
+  turnEl.textContent = activeGame.roundNumber;
+
+  const current = activeGame.playOrder[activeGame.seatIndex];
+  const currentPlayer = DATA.players.find(p => p.id === current.playerId);
+  const currentDeck = DATA.decks.find(d => d.id === current.deckId);
+  document.getElementById('nowPlayingDisplay').textContent =
+    `${currentPlayer ? currentPlayer.name : '—'}${currentDeck ? ' · ' + currentDeck.name : ''}${current.t1a ? ' · T1A' : ''}`;
+
+  document.getElementById('gameRoster').innerHTML = activeGame.playOrder.map((p, i) => {
+    const player = DATA.players.find(x => x.id === p.playerId);
+    const cls = ['roster-chip'];
+    if (i === activeGame.seatIndex && !p.eliminated) cls.push('current');
+    if (p.eliminated) cls.push('eliminated');
+    return `<span class="${cls.join(' ')}">${i + 1}. ${escapeHtml(player ? player.name : '—')}</span>`;
+  }).join('');
 
   const stepper = document.getElementById('phaseStepper');
   let html = '';
@@ -1485,35 +1615,90 @@ function renderPhaseTracker() {
   document.getElementById('phaseDesc').textContent = phase.desc;
   document.getElementById('nextPhaseBtn').textContent = phaseIndex === PHASES.length - 1 ? 'End Turn →' : 'Next →';
   renderTurnTimes();
+  renderElimSessionList();
 }
 function renderTurnTimes() {
   const wrap = document.getElementById('turnTimesList');
   if (!wrap) return;
   const entries = Object.keys(turnTimes);
   if (!entries.length) { wrap.innerHTML = '<div class="empty" style="padding:4px 0;">No completed turns yet this session.</div>'; return; }
+  const activePid = activeGame ? activeGame.playOrder[activeGame.seatIndex].playerId : null;
   wrap.innerHTML = entries.map(pid => {
     const player = DATA.players.find(p => p.id === pid);
-    const isActive = pid === activePlayerId;
     return `<div class="counter-row">
-      <span>${escapeHtml(player ? player.name : 'Unknown')}${isActive ? ' (in progress)' : ''}</span>
+      <span>${escapeHtml(player ? player.name : 'Unknown')}${pid === activePid ? ' (in progress)' : ''}</span>
       <span class="counter-value">${formatSeconds(turnTimes[pid])}</span>
     </div>`;
   }).join('');
 }
-function goToPhase(i) { phaseIndex = i; renderPhaseTracker(); }
+function renderElimSessionList() {
+  const wrap = document.getElementById('elimSessionList');
+  if (!wrap || !activeGame) return;
+  if (!activeGame.eliminations.length) { wrap.innerHTML = '<div class="empty" style="padding:4px 0;">None yet.</div>'; return; }
+  wrap.innerHTML = activeGame.eliminations.map(e => {
+    const target = DATA.players.find(p => p.id === e.eliminatedPlayerId);
+    const by = e.eliminatorId ? DATA.players.find(p => p.id === e.eliminatorId) : null;
+    return `<div class="counter-row"><span>${escapeHtml(target ? target.name : '—')}${by ? ' — by ' + escapeHtml(by.name) : ''}</span><span class="counter-value mono">T${e.turn}</span></div>`;
+  }).join('');
+}
+function goToPhase(i) { if (!activeGame) return; phaseIndex = i; renderPhaseTracker(); }
 function nextPhase() {
-  if (phaseIndex === PHASES.length - 1) { closeTurnSegment(); turnNumber++; phaseIndex = 0; }
-  else { phaseIndex++; }
-  renderPhaseTracker();
+  if (!activeGame) return;
+  if (phaseIndex === PHASES.length - 1) { endTurnNow(); }
+  else { phaseIndex++; renderPhaseTracker(); }
 }
 function prevPhase() {
+  if (!activeGame) return;
   if (phaseIndex > 0) phaseIndex--;
   renderPhaseTracker();
 }
-function resetTracker() {
-  phaseIndex = 0; turnNumber = 1; turnTimes = {}; turnStartTs = activePlayerId ? Date.now() : null;
+function endTurnNow() {
+  if (!activeGame) return;
+  closeTurnSegment(); // credits elapsed time to the player whose turn just ended
+  advanceSeat();
+  phaseIndex = 0;
   renderPhaseTracker();
 }
+function advanceSeat() {
+  const g = activeGame;
+  const n = g.playOrder.length;
+  if (g.playOrder.every(p => p.eliminated)) return;
+  let next = g.seatIndex;
+  do { next = (next + 1) % n; } while (g.playOrder[next].eliminated && next !== g.seatIndex);
+  if (next <= g.seatIndex) g.roundNumber++;
+  g.seatIndex = next;
+}
+
+// ---------- ELIMINATE PLAYER ----------
+function openEliminateModal() {
+  if (!activeGame) return;
+  const remaining = activeGame.playOrder.filter(p => !p.eliminated);
+  document.getElementById('elimTargetSelect').innerHTML = remaining.map(p => {
+    const player = DATA.players.find(x => x.id === p.playerId);
+    return `<option value="${p.playerId}">${escapeHtml(player ? player.name : '—')}</option>`;
+  }).join('');
+  document.getElementById('elimBySelect').innerHTML = '<option value="">— not player-caused —</option>' +
+    activeGame.playOrder.map(p => {
+      const player = DATA.players.find(x => x.id === p.playerId);
+      return `<option value="${p.playerId}">${escapeHtml(player ? player.name : '—')}</option>`;
+    }).join('');
+  document.getElementById('elimTurnInput').value = activeGame.roundNumber;
+  document.getElementById('eliminateModal').classList.add('active');
+}
+function closeEliminateModal() { document.getElementById('eliminateModal').classList.remove('active'); }
+function confirmEliminate() {
+  const targetId = document.getElementById('elimTargetSelect').value;
+  if (!targetId) return;
+  const byId = document.getElementById('elimBySelect').value || null;
+  const turn = Number(document.getElementById('elimTurnInput').value) || activeGame.roundNumber;
+  const p = activeGame.playOrder.find(x => x.playerId === targetId);
+  if (p) p.eliminated = true;
+  activeGame.eliminations.push({ eliminatedPlayerId: targetId, eliminatorId: byId, turn });
+  closeEliminateModal();
+  renderPhaseTracker();
+}
+document.getElementById('eliminateModal').addEventListener('click', (e) => { if (e.target.id === 'eliminateModal') closeEliminateModal(); });
+
 function attachTurnTimesToLog() {
   const filtered = {};
   Object.keys(turnTimes).forEach(pid => { if (DATA.players.some(p => p.id === pid)) filtered[pid] = turnTimes[pid]; });
