@@ -126,6 +126,13 @@
   button.btn.danger { background: var(--danger); color: var(--paper); }
 
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .pilot-group { margin-bottom: 20px; }
+  .pilot-group:last-child { margin-bottom: 0; }
+  .pilot-group-label {
+    font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.72rem;
+    color: var(--gold); letter-spacing: 0.02em; margin-bottom: 8px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line-soft);
+  }
   #boardTable { min-width: 620px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--line-soft); font-size: 0.85rem; font-weight: 500; }
@@ -556,7 +563,7 @@
           <div><label>Partner / background (optional)</label><input id="deckCommanderPartner" placeholder="e.g. Tevesh Szat, Deceiver's Blade"></div>
         </div>
         <label>Color identity</label>
-        <div class="color-picks">
+        <div class="color-picks" id="addDeckColors">
           <label class="color-check"><input type="checkbox" value="W"> ⚪ White</label>
           <label class="color-check"><input type="checkbox" value="U"> 🔵 Blue</label>
           <label class="color-check"><input type="checkbox" value="B"> ⚫ Black</label>
@@ -576,7 +583,7 @@
       </div>
       <div class="panel">
         <h2>Decks</h2>
-        <div class="table-scroll"><table id="decksTable"><tbody></tbody></table></div>
+        <div id="decksGrouped"></div>
         <div class="empty" id="decksEmpty">No decks registered yet.</div>
         <div class="status-line">Click a deck to view its edition history, edit it, or log upgrades.</div>
       </div>
@@ -709,7 +716,7 @@
 let DATA = { players: [], decks: [], games: [] };
 // The pod's shared backend — hardcoded so the app connects automatically.
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
-const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyS_c-i67HO7Dpb8RHhljkZYo_Qg6Sg7frQ3ntg2kHZ_svE0M4vWsdBNk8f76QWGpyO/exec';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwRQnQl5K6okwc3y-zuyJKh3MHodYIgabU39psceSGvIxWzdiQ8Gm9ccBcKkNo33ZaD/exec';
 
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
@@ -880,31 +887,43 @@ function addDeck() {
   const bracket = document.getElementById('deckBracket').value;
   const commander = document.getElementById('deckCommander').value.trim();
   const commanderPartner = document.getElementById('deckCommanderPartner').value.trim();
-  const colors = Array.from(document.querySelectorAll('.color-check input:checked')).map(c => c.value);
+  const colors = Array.from(document.querySelectorAll('#addDeckColors input:checked')).map(c => c.value);
   if (!name || !playerId) return;
   nameEl.value = '';
   document.getElementById('deckCommander').value = '';
   document.getElementById('deckCommanderPartner').value = '';
-  document.querySelectorAll('.color-check input').forEach(c => c.checked = false);
+  document.querySelectorAll('#addDeckColors input').forEach(c => c.checked = false);
   apiPost('addDeck', { id: uid('d'), name, playerId, bracket: Number(bracket), colors, commander, commanderPartner, date: todayStr() });
 }
 async function removeDeck(id) { await apiPost('removeDeck', { id }); }
 function renderDecks() {
-  const tbody = document.querySelector('#decksTable tbody');
-  tbody.innerHTML = '';
+  const wrap = document.getElementById('decksGrouped');
+  wrap.innerHTML = '';
   document.getElementById('decksEmpty').style.display = DATA.decks.length ? 'none' : 'block';
-  DATA.decks.forEach(d => {
-    const pilot = DATA.players.find(p => p.id === d.playerId);
+
+  function deckRowHtml(d) {
     const cmd = commanderLine(d);
-    const tr = document.createElement('tr');
-    tr.className = 'clickable';
-    tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(d.id); };
-    tr.innerHTML = `<td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
-      <td class="mono" style="color:var(--paper-dim2)">${pilot ? escapeHtml(pilot.name) : '—'}</td>
+    return `<tr class="clickable" onclick="if(event.target.tagName!=='BUTTON') openDeckModal('${d.id}')">
+      <td>${escapeHtml(d.name)} ${pipsFor(d.colors)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono">B${d.bracket}</td>
-      <td class="num"><button class="remove-link" onclick="removeDeck('${d.id}')">remove</button></td>`;
-    tbody.appendChild(tr);
+      <td class="num"><button class="remove-link" onclick="removeDeck('${d.id}')">remove</button></td>
+    </tr>`;
+  }
+  function groupHtml(label, decks) {
+    return `<div class="pilot-group">
+      <div class="pilot-group-label">${escapeHtml(label)}</div>
+      <div class="table-scroll"><table><tbody>${decks.map(deckRowHtml).join('')}</tbody></table></div>
+    </div>`;
+  }
+
+  let html = '';
+  DATA.players.forEach(p => {
+    const decks = DATA.decks.filter(d => d.playerId === p.id);
+    if (decks.length) html += groupHtml(p.name, decks);
   });
+  const unassigned = DATA.decks.filter(d => !DATA.players.some(p => p.id === d.playerId));
+  if (unassigned.length) html += groupHtml('Unassigned', unassigned);
+  wrap.innerHTML = html;
 }
 
 // ---------- MY DECKS ----------
