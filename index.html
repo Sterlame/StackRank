@@ -384,12 +384,19 @@
   #activeGamePanel.life-focus .np-deck { font-size: 0.7rem; }
   #activeGamePanel.life-focus .game-roster { display: none; }
   #activeGamePanel.life-focus .life-tiles {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px; overflow: visible; margin-bottom: 10px;
+    display: grid; gap: 10px; overflow: visible; margin-bottom: 10px;
+    grid-template-columns: repeat(2, 1fr);
   }
-  #activeGamePanel.life-focus .life-tile { padding: 20px 8px; }
+  #activeGamePanel.life-focus .life-tiles.count-3 { grid-template-columns: repeat(3, 1fr); }
+  #activeGamePanel.life-focus .life-tiles.count-4 { grid-template-columns: repeat(2, 1fr); }
   #activeGamePanel.life-focus .life-tile-name { font-size: 0.78rem; }
-  #activeGamePanel.life-focus .life-tile-num { font-size: 3rem; }
+  /* Fewer players = more room per tile, so numbers scale up; capped at 4 total. */
+  #activeGamePanel.life-focus .life-tiles.count-2 .life-tile { padding: 34px 10px; }
+  #activeGamePanel.life-focus .life-tiles.count-2 .life-tile-num { font-size: 4.6rem; }
+  #activeGamePanel.life-focus .life-tiles.count-3 .life-tile { padding: 22px 8px; }
+  #activeGamePanel.life-focus .life-tiles.count-3 .life-tile-num { font-size: 3.2rem; }
+  #activeGamePanel.life-focus .life-tiles.count-4 .life-tile { padding: 18px 8px; }
+  #activeGamePanel.life-focus .life-tiles.count-4 .life-tile-num { font-size: 2.7rem; }
   #activeGamePanel.life-focus .phase-banner-panel { padding: 8px 10px; margin-bottom: 6px; }
   #activeGamePanel.life-focus .phase-name-big { font-size: 1rem; margin-bottom: 2px; }
   #activeGamePanel.life-focus .phase-group-label { font-size: 0.56rem; margin-bottom: 2px; }
@@ -403,6 +410,7 @@
     background: var(--panel); border-top: 1px solid var(--line);
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
     box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+    transition: bottom 0.1s linear;
   }
   .pab-main { display: flex; gap: 8px; max-width: 900px; margin: 0 auto; }
   .pab-btn {
@@ -1089,6 +1097,7 @@ function updatePlayActionBar() {
   const show = onPlay && activeGame;
   document.getElementById('playActionBar').style.display = show ? 'block' : 'none';
   document.body.classList.toggle('has-action-bar', !!show);
+  if (show) setTimeout(updateActionBarPosition, 50);
 }
 function setRegSub(sub) {
   document.querySelectorAll('.subnav button').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
@@ -2181,6 +2190,7 @@ let lifeSheetPlayerId = null;
 function renderLifeTiles() {
   const wrap = document.getElementById('lifeTiles');
   if (!wrap || !activeGame) return;
+  wrap.className = 'life-tiles count-' + activeGame.playOrder.length;
   wrap.innerHTML = activeGame.playOrder.map((p, i) => {
     const player = DATA.players.find(x => x.id === p.playerId);
     const cls = ['life-tile'];
@@ -2342,6 +2352,28 @@ function attachTurnTimesToLog() {
     }
   }, { passive: true });
 })();
+
+// ---------- STICKY BAR VIEWPORT FIX ----------
+// On Android Chrome, position:fixed bottom:0 can anchor to the layout viewport
+// (which includes space the browser's address bar temporarily hides), leaving
+// a visible gap below the bar once the toolbar auto-hides during scroll. The
+// Visual Viewport API reports the actually-visible area, so we track it and
+// correct the offset directly instead of trusting bottom:0 alone.
+function updateActionBarPosition() {
+  const bar = document.getElementById('playActionBar');
+  if (!bar || bar.style.display === 'none') return;
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const gap = window.innerHeight - vv.height - vv.offsetTop;
+    bar.style.bottom = Math.max(0, Math.round(gap)) + 'px';
+  }
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateActionBarPosition);
+  window.visualViewport.addEventListener('scroll', updateActionBarPosition);
+}
+window.addEventListener('resize', updateActionBarPosition);
+window.addEventListener('orientationchange', () => setTimeout(updateActionBarPosition, 250));
 
 loadData();
 </script>
