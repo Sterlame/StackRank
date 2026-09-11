@@ -204,6 +204,7 @@
   .hof-fame .hof-value { color: var(--sage); }
   .hof-shame .hof-value { color: var(--danger); }
   .hof-sub { color: var(--paper-dim2); font-weight: 500; font-size: 0.78rem; }
+  .power-cell { color: var(--gold); font-weight: 800; font-size: 0.95rem; }
 
   @media (max-width: 640px) {
     .app { padding: 20px 12px 56px; }
@@ -314,9 +315,14 @@
   .roster-chip {
     font-family: ui-monospace, monospace; font-size: 0.66rem; font-weight: 700;
     padding: 5px 10px; border: 1px solid var(--line); color: var(--paper-dim2);
+    background: none; cursor: pointer; transition: border-color 0.15s, color 0.15s;
   }
+  button.roster-chip:hover { border-color: var(--gold-dim); color: var(--paper); }
   .roster-chip.current { border-color: var(--gold); color: var(--gold); }
-  .roster-chip.eliminated { text-decoration: line-through; opacity: 0.4; }
+  .roster-chip.eliminated { text-decoration: line-through; opacity: 0.4; cursor: default; }
+  .life-sheet-row { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .collapse-toggle { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .collapse-arrow { color: var(--gold); font-size: 0.7rem; }
 
   /* Prominent whose-turn-is-it hero */
   .now-playing-hero {
@@ -469,6 +475,13 @@
         <div class="panel">
           <h2>Start a game</h2>
           <p class="setup-hint">Add each player in turn order (seat 1 goes first). Pick their deck, flag Turn 1 Advantage if they had it.</p>
+          <label>Starting life</label>
+          <div class="life-preset-group" id="lifePresetGroup">
+            <button type="button" class="life-preset active" data-val="40" onclick="setSetupLife(40)">40</button>
+            <button type="button" class="life-preset" data-val="20" onclick="setSetupLife(20)">20</button>
+            <button type="button" class="life-preset" data-val="30" onclick="setSetupLife(30)">30</button>
+            <input type="number" id="setupLifeCustom" class="life-preset-custom" placeholder="custom" min="1" onchange="setSetupLife(this.value)">
+          </div>
           <div id="gameSetupRows"></div>
           <button class="btn ghost small" onclick="addGameSetupRow()">+ Add player</button>
           <div style="margin-top:14px;"><button class="btn btn-start" onclick="startGame()">▶ Start game</button></div>
@@ -501,12 +514,12 @@
         </div>
 
         <div class="panel compact" style="margin-top:14px;">
-          <div class="life-section-label"><span>Turn times this game</span></div>
-          <div id="turnTimesList"></div>
+          <div class="life-section-label collapse-toggle" onclick="toggleCollapse(this)"><span>Turn times this game</span><span class="collapse-arrow">▸</span></div>
+          <div id="turnTimesList" class="collapse-body" style="display:none;"></div>
         </div>
         <div class="panel compact" style="margin-top:10px;">
-          <div class="life-section-label"><span>Eliminations this game</span></div>
-          <div id="elimSessionList"></div>
+          <div class="life-section-label collapse-toggle" onclick="toggleCollapse(this)"><span>Eliminations this game</span><span class="collapse-arrow">▸</span></div>
+          <div id="elimSessionList" class="collapse-body" style="display:none;"></div>
         </div>
       </div>
     </div>
@@ -583,15 +596,13 @@
         <table id="boardTable">
           <thead>
             <tr>
-              <th class="sortable" data-key="name" onclick="setSort('name')">Deck</th>
-              <th class="sortable" data-key="pilot" onclick="setSort('pilot')">Pilot</th>
-              <th class="num sortable" data-key="bracket" onclick="setSort('bracket')">Brkt</th>
-              <th class="num sortable" data-key="gp" onclick="setSort('gp')">GP</th>
-              <th class="num sortable" data-key="winpct" onclick="setSort('winpct')">Win%</th>
-              <th class="num sortable" data-key="avgTurn" onclick="setSort('avgTurn')">Avg Win Turn</th>
-              <th class="num sortable" data-key="threats" onclick="setSort('threats')">Threat</th>
-              <th class="num sortable" data-key="elims" onclick="setSort('elims')">Elims</th>
-              <th class="num sortable" data-key="elimRate" onclick="setSort('elimRate')">Elim/Game</th>
+              <th class="sortable" data-key="name" onclick="setSort('name')"><span class="th-label">Deck</span></th>
+              <th class="num sortable" data-key="power" onclick="setSort('power')">
+                <span class="th-label">Power</span> <button type="button" class="info-btn" onclick="event.stopPropagation(); openPowerInfoModal()" title="How Power is calculated">i</button>
+              </th>
+              <th class="num sortable" data-key="winpct" onclick="setSort('winpct')"><span class="th-label">Win%</span></th>
+              <th class="num sortable" data-key="avgTurn" onclick="setSort('avgTurn')"><span class="th-label">Speed</span></th>
+              <th class="num sortable" data-key="gp" onclick="setSort('gp')"><span class="th-label">GP</span></th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -682,6 +693,20 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="lifeSheetModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeLifeSheet()">close ×</button>
+    <h3 id="lifeSheetName"></h3>
+    <div class="life-sheet-row">
+      <button class="life-btn minus" onclick="adjustSheetLife(-5)">−5</button>
+      <button class="life-btn minus" onclick="adjustSheetLife(-1)">−1</button>
+      <div class="life-number" id="lifeSheetNumber">40</div>
+      <button class="life-btn plus" onclick="adjustSheetLife(1)">+1</button>
+      <button class="life-btn plus" onclick="adjustSheetLife(5)">+5</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="eliminateModal">
   <div class="modal">
     <button class="modal-close" onclick="closeEliminateModal()">close ×</button>
@@ -693,6 +718,26 @@
     <label>Turn</label>
     <input id="elimTurnInput" type="number" min="1">
     <button class="btn small" onclick="confirmEliminate()">Confirm elimination</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="powerInfoModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closePowerInfoModal()">close ×</button>
+    <h3>How Power is calculated</h3>
+    <div class="modal-sub">A single number combining win rate, eliminations, and speed</div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6; margin-bottom: 12px;">
+      <strong>50% win rate</strong> — the core signal, how often the deck actually wins.
+    </div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6; margin-bottom: 12px;">
+      <strong>25% eliminations</strong> — average eliminations per game, scaled against
+      the most aggressive deck in your pod (not a fixed number, so it stays fair as more
+      games get logged).
+    </div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
+      <strong>25% speed</strong> — how fast the deck's wins close out, scaled against the
+      fastest and slowest average win turns in your pod.
+    </div>
   </div>
 </div>
 
@@ -735,6 +780,7 @@
     <h3 id="modalDeckName"></h3>
     <div class="history-note" id="modalDeckCommander" style="margin-bottom: 4px;"></div>
     <div class="modal-sub" id="modalDeckMeta"></div>
+    <div id="modalDeckStats" style="margin-bottom: 14px;"></div>
 
     <div style="margin-bottom: 16px;">
       <button class="icon-link" onclick="toggleDeckEdit()" id="deckEditToggle">edit deck details</button>
@@ -829,7 +875,7 @@ let participantRowCount = 0;
 let activeDeckId = null;
 let activeGameId = null;
 let editingGameId = null;
-let sortState = { key: 'winpct', dir: 'desc' };
+let sortState = { key: 'power', dir: 'desc' };
 let boardBracketFilter = 'all';
 let boardColorFilter = [];
 let connectionState = 'unconfigured'; // unconfigured | connecting | connected | error
@@ -1078,6 +1124,23 @@ function renderMyDecks() {
 }
 
 // ---------- DECK MODAL ----------
+function computeDeckStats(deckId) {
+  let gp = 0, wins = 0, winTurns = [], elims = 0, threats = 0;
+  DATA.games.forEach(g => {
+    g.participants.forEach(pt => {
+      if (pt.deckId !== deckId) return;
+      gp++;
+      if (pt.outcome === 'win') { wins++; winTurns.push(g.endTurn); }
+      if (pt.threatenedWin) threats++;
+      elims += pt.eliminations.length;
+    });
+  });
+  return {
+    gp, wins, winpct: gp ? wins / gp : 0,
+    avgTurn: winTurns.length ? winTurns.reduce((a, b) => a + b, 0) / winTurns.length : null,
+    threats, elims, elimRate: gp ? elims / gp : 0
+  };
+}
 function openDeckModal(deckId) {
   activeDeckId = deckId;
   const deck = DATA.decks.find(d => d.id === deckId);
@@ -1087,6 +1150,14 @@ function openDeckModal(deckId) {
   const cmd = commanderLine(deck);
   document.getElementById('modalDeckCommander').textContent = cmd || '';
   document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket} · Current: ${deck.edition}`;
+  const dstats = computeDeckStats(deck.id);
+  document.getElementById('modalDeckStats').innerHTML = dstats.gp ? `
+    <div class="counter-row"><span>Games played</span><span class="counter-value">${dstats.gp}</span></div>
+    <div class="counter-row"><span>Win rate</span><span class="counter-value">${(dstats.winpct * 100).toFixed(0)}%</span></div>
+    <div class="counter-row"><span>Avg win turn</span><span class="counter-value">${dstats.avgTurn === null ? '—' : dstats.avgTurn.toFixed(1)}</span></div>
+    <div class="counter-row"><span>Threatened win rate</span><span class="counter-value">${(dstats.threats / dstats.gp * 100).toFixed(0)}%</span></div>
+    <div class="counter-row"><span>Eliminations</span><span class="counter-value">${dstats.elims} (${dstats.elimRate.toFixed(2)}/game)</span></div>
+  ` : '<div class="empty" style="padding:4px 0;">No games logged yet.</div>';
   document.getElementById('modalHistory').innerHTML = [...deck.history].reverse().map(h => `
     <div class="history-row">
       <div><span class="edition-tag">${escapeHtml(h.edition)}</span>${h.note ? `<div class="history-note">${escapeHtml(h.note)}</div>` : ''}</div>
@@ -1131,6 +1202,9 @@ document.getElementById('gameDetailModal').addEventListener('click', (e) => { if
 function openBracketInfoModal() { document.getElementById('bracketInfoModal').classList.add('active'); }
 function closeBracketInfoModal() { document.getElementById('bracketInfoModal').classList.remove('active'); }
 document.getElementById('bracketInfoModal').addEventListener('click', (e) => { if (e.target.id === 'bracketInfoModal') closeBracketInfoModal(); });
+function openPowerInfoModal() { document.getElementById('powerInfoModal').classList.add('active'); }
+function closePowerInfoModal() { document.getElementById('powerInfoModal').classList.remove('active'); }
+document.getElementById('powerInfoModal').addEventListener('click', (e) => { if (e.target.id === 'powerInfoModal') closePowerInfoModal(); });
 
 async function logEdition() {
   const deck = DATA.decks.find(d => d.id === activeDeckId);
@@ -1370,13 +1444,33 @@ function computeLeaderboardRows() {
       s.elims += pt.eliminations.length;
     });
   });
-  return Object.values(stats).filter(s => s.gp > 0).map(s => {
+  let rows = Object.values(stats).filter(s => s.gp > 0).map(s => {
     const pilot = DATA.players.find(p => p.id === s.deck.playerId);
     return { deck: s.deck, pilotName: pilot ? pilot.name : '', bracket: s.deck.bracket, gp: s.gp,
       winpct: s.gp ? (s.wins / s.gp) : 0,
       avgTurn: s.winTurns.length ? (s.winTurns.reduce((a,b)=>a+b,0) / s.winTurns.length) : null,
       threats: s.threats, elims: s.elims, elimRate: s.gp ? (s.elims / s.gp) : 0 };
-  }).filter(r => {
+  });
+
+  // Power Index: 50% win rate, 25% eliminations, 25% speed — the elim and speed
+  // components are scaled relative to this pod's own field (fastest/most-eliminating
+  // deck sets the ceiling), rather than an arbitrary fixed number, so it stays
+  // meaningful as the data grows instead of being calibrated to a guess.
+  const maxElimRate = Math.max(0, ...rows.map(r => r.elimRate));
+  const turnedRows = rows.filter(r => r.avgTurn !== null);
+  const minTurn = turnedRows.length ? Math.min(...turnedRows.map(r => r.avgTurn)) : null;
+  const maxTurn = turnedRows.length ? Math.max(...turnedRows.map(r => r.avgTurn)) : null;
+  rows.forEach(r => {
+    const winScore = r.winpct * 100;
+    const elimScore = maxElimRate > 0 ? (r.elimRate / maxElimRate) * 100 : 0;
+    let speedScore = 0;
+    if (r.avgTurn !== null) {
+      speedScore = (maxTurn === minTurn) ? 100 : ((maxTurn - r.avgTurn) / (maxTurn - minTurn)) * 100;
+    }
+    r.power = Math.round(0.5 * winScore + 0.25 * elimScore + 0.25 * speedScore);
+  });
+
+  return rows.filter(r => {
     if (boardBracketFilter !== 'all' && Number(r.bracket) !== Number(boardBracketFilter)) return false;
     if (boardColorFilter.length && !boardColorFilter.every(c => (r.deck.colors || []).includes(c))) return false;
     return true;
@@ -1409,8 +1503,10 @@ function renderLeaderboard() {
     return 0;
   });
   document.querySelectorAll('#boardTable th.sortable').forEach(th => {
-    const base = th.textContent.replace(/ ▲| ▼/g, '');
-    th.textContent = base + (th.dataset.key === key ? (dir === 'asc' ? ' ▲' : ' ▼') : '');
+    const label = th.querySelector('.th-label');
+    if (!label) return;
+    const base = label.textContent.replace(/ ▲| ▼/g, '');
+    label.textContent = base + (th.dataset.key === key ? (dir === 'asc' ? ' ▲' : ' ▼') : '');
   });
   const tbody = document.querySelector('#boardTable tbody');
   tbody.innerHTML = '';
@@ -1420,15 +1516,13 @@ function renderLeaderboard() {
     const avgTurn = r.avgTurn === null ? '—' : r.avgTurn.toFixed(1);
     const cmd = commanderLine(r.deck);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(r.deck.name)} ${pipsFor(r.deck.colors)}<span class="edition-tag">${r.deck.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
-      <td class="mono" style="color:var(--paper-dim2)">${escapeHtml(r.pilotName || '—')}</td>
-      <td class="num mono">B${r.bracket}</td>
-      <td class="num mono">${r.gp}</td>
+    tr.className = 'clickable';
+    tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(r.deck.id); };
+    tr.innerHTML = `<td>${escapeHtml(r.deck.name)} ${pipsFor(r.deck.colors)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
+      <td class="num mono power-cell">${r.power}</td>
       <td class="num mono" style="color:var(--sage)">${winPct}%</td>
       <td class="num mono">${avgTurn}</td>
-      <td class="num mono">${r.threats}</td>
-      <td class="num mono">${r.elims}</td>
-      <td class="num mono">${r.elimRate.toFixed(2)}</td>`;
+      <td class="num mono">${r.gp}</td>`;
     tbody.appendChild(tr);
   });
   renderGamesLog();
@@ -1711,6 +1805,13 @@ function renumberSetupRows() {
     row.querySelector('.badge').textContent = 'Seat ' + (i + 1);
   });
 }
+let setupLife = 40;
+function setSetupLife(val) {
+  const num = Number(val);
+  if (!num || num < 1) return;
+  setupLife = num;
+  document.querySelectorAll('#lifePresetGroup .life-preset').forEach(b => b.classList.toggle('active', Number(b.dataset.val) === num));
+}
 function startGame() {
   const notice = document.getElementById('gameSetupNotice');
   const rows = document.querySelectorAll('#gameSetupRows .participant-card');
@@ -1720,13 +1821,14 @@ function startGame() {
     const playerId = row.querySelector('.gs-player-select').value;
     const deckId = row.querySelector('.gs-deck-select').value;
     if (!playerId || !deckId) { notice.textContent = 'Every seat needs a player and a deck.'; return; }
-    playOrder.push({ playerId, deckId, t1a: row.querySelector('.gs-t1a-input').checked, eliminated: false });
+    playOrder.push({ playerId, deckId, t1a: row.querySelector('.gs-t1a-input').checked, eliminated: false, life: setupLife });
   }
-  activeGame = { playOrder, seatIndex: 0, roundNumber: 1, eliminations: [] };
+  activeGame = { playOrder, seatIndex: 0, roundNumber: 1, eliminations: [], startingLife: setupLife };
   turnTimes = {};
   phaseIndex = 0;
   turnStartTs = Date.now();
   clearUndo();
+  requestWakeLock();
   document.getElementById('gameSetupPanel').style.display = 'none';
   document.getElementById('activeGamePanel').style.display = 'block';
   renderPhaseTracker();
@@ -1736,12 +1838,35 @@ function endGame() {
   if (!confirm('Discard this game without saving? Nothing will be sent to the leaderboard.')) return;
   activeGame = null;
   clearUndo();
+  releaseWakeLock();
   document.getElementById('gameSetupPanel').style.display = 'block';
   document.getElementById('activeGamePanel').style.display = 'none';
   document.getElementById('gameSetupRows').innerHTML = '';
   document.getElementById('gameSetupNotice').textContent = '';
   gsRowCount = 0;
   updatePlayActionBar();
+}
+
+// ---------- WAKE LOCK — keep the screen on during an active game ----------
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+  } catch (e) { /* unsupported or denied — not fatal */ }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && activeGame) requestWakeLock();
+});
+
+function buzz(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} } }
+function toggleCollapse(headerEl) {
+  const body = headerEl.nextElementSibling;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  headerEl.querySelector('.collapse-arrow').textContent = open ? '▸' : '▾';
 }
 
 // ---------- UNDO (single-level, for the easy-to-misclick actions) ----------
@@ -1797,7 +1922,10 @@ function renderPhaseTracker() {
     const cls = ['roster-chip'];
     if (i === activeGame.seatIndex && !p.eliminated) cls.push('current');
     if (p.eliminated) cls.push('eliminated');
-    return `<span class="${cls.join(' ')}">${i + 1}. ${escapeHtml(player ? player.name : '—')}</span>`;
+    const label = `${i + 1}. ${escapeHtml(player ? player.name : '—')} — ${p.life}`;
+    return p.eliminated
+      ? `<span class="${cls.join(' ')}">${label}</span>`
+      : `<button type="button" class="${cls.join(' ')}" onclick="openLifeSheet('${p.playerId}')">${label}</button>`;
   }).join('');
 
   const stepper = document.getElementById('phaseStepper');
@@ -1864,6 +1992,7 @@ function endTurnNow() {
   closeTurnSegment(); // credits elapsed time to the player whose turn just ended
   advanceSeat();
   phaseIndex = 0;
+  buzz(15);
   renderPhaseTracker();
 }
 function advanceSeat() {
@@ -1902,10 +2031,56 @@ function confirmEliminate() {
   const p = activeGame.playOrder.find(x => x.playerId === targetId);
   if (p) p.eliminated = true;
   activeGame.eliminations.push({ eliminatedPlayerId: targetId, eliminatorId: byId, turn });
+  buzz(25);
   closeEliminateModal();
   renderPhaseTracker();
 }
 document.getElementById('eliminateModal').addEventListener('click', (e) => { if (e.target.id === 'eliminateModal') closeEliminateModal(); });
+
+// ---------- LIFE SHEET — tap a roster chip to adjust just that player's life ----------
+let lifeSheetPlayerId = null;
+function openLifeSheet(playerId) {
+  if (!activeGame) return;
+  const p = activeGame.playOrder.find(x => x.playerId === playerId);
+  if (!p || p.eliminated) return;
+  lifeSheetPlayerId = playerId;
+  const player = DATA.players.find(x => x.id === playerId);
+  document.getElementById('lifeSheetName').textContent = player ? player.name : '—';
+  document.getElementById('lifeSheetNumber').textContent = p.life;
+  document.getElementById('lifeSheetModal').classList.add('active');
+}
+function closeLifeSheet() {
+  document.getElementById('lifeSheetModal').classList.remove('active');
+  lifeSheetPlayerId = null;
+  renderPhaseTracker();
+}
+function adjustSheetLife(delta) {
+  if (!activeGame || !lifeSheetPlayerId) return;
+  const p = activeGame.playOrder.find(x => x.playerId === lifeSheetPlayerId);
+  if (!p) return;
+  p.life += delta;
+  document.getElementById('lifeSheetNumber').textContent = p.life;
+  if (p.life <= 0) {
+    const player = DATA.players.find(x => x.id === lifeSheetPlayerId);
+    if (confirm(`${player ? player.name : 'This player'} is at ${p.life} life. Eliminate them?`)) {
+      const pid = lifeSheetPlayerId;
+      closeLifeSheet();
+      quickEliminate(pid);
+      return;
+    }
+  }
+}
+function quickEliminate(playerId) {
+  if (!activeGame) return;
+  const p = activeGame.playOrder.find(x => x.playerId === playerId);
+  if (!p || p.eliminated) return;
+  snapshotForUndo('Player eliminated');
+  p.eliminated = true;
+  activeGame.eliminations.push({ eliminatedPlayerId: playerId, eliminatorId: null, turn: activeGame.roundNumber });
+  buzz(25);
+  renderPhaseTracker();
+}
+document.getElementById('lifeSheetModal').addEventListener('click', (e) => { if (e.target.id === 'lifeSheetModal') closeLifeSheet(); });
 
 // ---------- GAME WON — hands the active session off to Log Game ----------
 function openGameWonModal() {
@@ -1958,6 +2133,7 @@ async function sendActiveGameToLog(winnerId) {
     activeGame = null;
     turnTimes = {};
     clearUndo();
+    releaseWakeLock();
     document.getElementById('gameSetupPanel').style.display = 'block';
     document.getElementById('activeGamePanel').style.display = 'none';
     document.getElementById('gameSetupRows').innerHTML = '';
@@ -1993,6 +2169,26 @@ function attachTurnTimesToLog() {
   renderPendingPlayNotice();
 }
 
+
+// ---------- SWIPE GESTURE on the phase banner (left = next, right = prev) ----------
+(function setupPhaseSwipe() {
+  const el = document.getElementById('phaseBannerPanel');
+  if (!el) return;
+  let startX = null, startY = null;
+  el.addEventListener('touchstart', e => {
+    if (!activeGame || !e.touches.length) return;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+  }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (!activeGame || startX === null || !e.changedTouches.length) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    startX = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) nextPhase(); else prevPhase();
+    }
+  }, { passive: true });
+})();
 
 loadData();
 </script>
