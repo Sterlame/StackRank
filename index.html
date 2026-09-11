@@ -147,6 +147,16 @@
 
   .participant-card { border: 1px solid var(--line); padding: 14px; margin-bottom: 12px; position: relative; }
   .participant-card .kill { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .seat-row { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 14px; }
+  .seat-field label { margin-bottom: 5px; }
+  .seat-input { width: 44px; height: 44px; text-align: center; font-weight: 700; font-size: 1.1rem; margin-bottom: 0; padding: 0; }
+  .t1sr-check {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line);
+    padding: 9px 12px; cursor: pointer; font-family: ui-monospace, monospace; font-weight: 700;
+    font-size: 0.72rem; letter-spacing: 0.02em; color: var(--paper-dim2); transition: border-color 0.15s, color 0.15s; height: 44px; box-sizing: border-box;
+  }
+  .t1sr-check input { width: auto; margin: 0; }
+  .t1sr-check:has(input:checked), .t1sr-check.checked { border-color: var(--gold); color: var(--gold); }
   .participant-card .kill select, .participant-card .kill input { margin-bottom: 0; }
   .remove-link { background: none; border: none; color: var(--danger); font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.65rem; cursor: pointer; padding: 0; }
   .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -1011,6 +1021,13 @@ function addParticipantRow() {
       <div><label>Player</label><select class="pl-select" onchange="syncPilotDefault('${id}')"></select></div>
       <div><label>Deck</label><select class="deck-select"></select></div>
     </div>
+    <div class="seat-row">
+      <div class="seat-field">
+        <label>Seat</label>
+        <input type="number" class="seat-input" min="1" max="8" placeholder="#">
+      </div>
+      <label class="t1sr-check"><input type="checkbox" class="t1sr-check-input" onchange="this.closest('.t1sr-check').classList.toggle('checked', this.checked)"> T1SR</label>
+    </div>
     <label><input type="checkbox" class="pilot-override" onchange="togglePilot('${id}')" style="width:auto;display:inline-block;margin-right:6px;"> Different pilot than deck's default</label>
     <div class="pilot-alt" style="display:none;"><label>Actual pilot</label><select class="alt-pl-select"></select></div>
     <label>Outcome</label>
@@ -1095,6 +1112,9 @@ async function submitGame() {
     if (outcome === 'win') winCount++;
     const threatenedWin = row.querySelector('.threatened-check').checked;
     const threatenedTurn = threatenedWin ? Number(row.querySelector('.threatened-turn-input').value) || null : null;
+    const seatVal = row.querySelector('.seat-input').value;
+    const seat = seatVal ? Number(seatVal) : null;
+    const t1sr = row.querySelector('.t1sr-check-input').checked;
     const kills = [];
     row.querySelectorAll('.kill').forEach(k => {
       const eliminatedPlayerId = k.querySelector('.kill-eliminated-select').value;
@@ -1102,7 +1122,7 @@ async function submitGame() {
       if (eliminatedPlayerId && turn) kills.push({ eliminatedPlayerId, turn });
     });
     participants.push({ playerId, deckId, pilotId: override ? altPlayerId : playerId, outcome, eliminations: kills,
-      threatenedWin, threatenedTurn,
+      threatenedWin, threatenedTurn, seat, t1sr,
       deckEdition: (DATA.decks.find(d => d.id === deckId) || {}).edition || null });
   }
   if (winCount !== 1) { notice.textContent = 'Mark exactly one participant as the Win.'; return; }
@@ -1231,7 +1251,8 @@ function openGameDetail(gameId) {
   document.getElementById('gdSub').textContent = `${g.playerCount} players · ended turn ${g.endTurn}`;
   const extrasByPlayer = {};
   (g.extras || []).forEach(e => { extrasByPlayer[e.playerId] = e; });
-  document.getElementById('gdBody').innerHTML = g.participants.map(pt => {
+  const sortedParticipants = [...g.participants].sort((a, b) => (a.seat || 99) - (b.seat || 99));
+  document.getElementById('gdBody').innerHTML = sortedParticipants.map(pt => {
     const player = DATA.players.find(p => p.id === pt.playerId);
     const deck = DATA.decks.find(d => d.id === pt.deckId);
     const pilot = (pt.pilotId && pt.pilotId !== pt.playerId) ? DATA.players.find(p => p.id === pt.pilotId) : null;
@@ -1248,8 +1269,8 @@ function openGameDetail(gameId) {
     return `
       <div class="history-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
         <div style="display:flex; justify-content:space-between; width:100%;">
-          <strong>${escapeHtml(player ? player.name : '—')}</strong>
-          <span class="badge ${pt.outcome === 'win' ? 'win' : ''}">${pt.outcome}${pt.threatenedWin ? ' · threatened T' + (pt.threatenedTurn || '?') : ''}</span>
+          <strong>${pt.seat ? `Seat ${pt.seat} · ` : ''}${escapeHtml(player ? player.name : '—')}</strong>
+          <span class="badge ${pt.outcome === 'win' ? 'win' : ''}">${pt.outcome}${pt.threatenedWin ? ' · threatened T' + (pt.threatenedTurn || '?') : ''}${pt.t1sr ? ' · T1SR' : ''}</span>
         </div>
         <div class="history-note">${escapeHtml(deck ? deck.name : '—')}${deck ? ' (' + escapeHtml(pt.deckEdition || deck.edition) + ')' : ''}${pilot ? ' · piloted by ' + escapeHtml(pilot.name) : ''}${deck && commanderLine(deck) ? ' · ' + commanderLine(deck) : ''}</div>
         <div class="history-note">Eliminated: ${elims}</div>
