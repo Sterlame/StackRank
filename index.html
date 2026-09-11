@@ -306,6 +306,10 @@
   .roster-chip.current { border-color: var(--gold); color: var(--gold); }
   .roster-chip.eliminated { text-decoration: line-through; opacity: 0.4; }
   .phase-quick-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap; }
+  .btn-endturn { background: var(--sage); color: var(--ink); }
+  .btn-endturn:hover { filter: brightness(1.1); }
+  .btn-eliminate { background: var(--danger); color: var(--ink); }
+  .btn-eliminate:hover { filter: brightness(1.1); }
 
   .life-setup-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
   .life-setup-row:last-of-type { margin-bottom: 0; }
@@ -435,8 +439,8 @@
           <button class="phase-big-btn" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
         </div>
         <div class="phase-quick-actions">
-          <button class="btn ghost small" onclick="endTurnNow()">⏭ End turn</button>
-          <button class="btn ghost small" onclick="openEliminateModal()">✕ Eliminate a player</button>
+          <button class="btn btn-endturn" onclick="endTurnNow()">⏭ End turn</button>
+          <button class="btn btn-eliminate" onclick="openEliminateModal()">✕ Eliminate a player</button>
           <button class="btn small" onclick="openGameWonModal()">🏆 Game won</button>
         </div>
 
