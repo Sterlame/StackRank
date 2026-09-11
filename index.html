@@ -194,6 +194,17 @@
   .color-filter-pip:hover { opacity: 0.8; }
   .color-filter-pip.active { opacity: 1; border-color: var(--gold); }
 
+  .hof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .hof-card { border: 1px solid var(--line); border-top: 3px solid var(--line); padding: 14px; text-align: center; background: var(--panel); }
+  .hof-card.hof-fame { border-top-color: var(--gold); }
+  .hof-card.hof-shame { border-top-color: var(--danger); }
+  .hof-label { font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.63rem; color: var(--paper-dim2); letter-spacing: 0.02em; margin-bottom: 8px; }
+  .hof-name { font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; }
+  .hof-value { font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.95rem; }
+  .hof-fame .hof-value { color: var(--sage); }
+  .hof-shame .hof-value { color: var(--danger); }
+  .hof-sub { color: var(--paper-dim2); font-weight: 500; font-size: 0.78rem; }
+
   @media (max-width: 640px) {
     .app { padding: 20px 12px 56px; }
     h1 { font-size: 1.4rem; }
@@ -296,8 +307,9 @@
   .phase-pip.current { border-color: var(--gold); color: var(--ink); background: var(--gold); }
   .phase-pip.done { color: var(--sage); border-color: var(--line-soft); }
   .phase-group-gap { flex: none; width: 10px; }
-  .now-playing { flex: 1; font-weight: 700; font-size: 0.92rem; text-align: center; }
-  .turn-num-display { border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; }
+  .setup-hint { color: var(--paper-dim); font-size: 0.82rem; line-height: 1.5; margin: -6px 0 16px; }
+  .btn-start { font-size: 0.85rem; padding: 12px 22px; }
+
   .game-roster { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
   .roster-chip {
     font-family: ui-monospace, monospace; font-size: 0.66rem; font-weight: 700;
@@ -305,11 +317,64 @@
   }
   .roster-chip.current { border-color: var(--gold); color: var(--gold); }
   .roster-chip.eliminated { text-decoration: line-through; opacity: 0.4; }
-  .phase-quick-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap; }
-  .btn-endturn { background: var(--sage); color: var(--ink); }
-  .btn-endturn:hover { filter: brightness(1.1); }
+
+  /* Prominent whose-turn-is-it hero */
+  .now-playing-hero {
+    background: var(--panel); border: 1px solid var(--gold-dim); border-left: 5px solid var(--gold);
+    padding: 16px 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .np-turn-label {
+    font-family: ui-monospace, monospace; font-weight: 800; font-size: 0.7rem; color: var(--ink);
+    background: var(--gold); padding: 6px 10px; letter-spacing: 0.02em; flex: none;
+  }
+  .np-turn-label::before { content: "TURN "; }
+  .np-name { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
+  .np-deck { color: var(--paper-dim); font-size: 0.85rem; width: 100%; }
+
+  .secondary-actions { display: flex; gap: 8px; justify-content: center; margin: 16px 0; flex-wrap: wrap; align-items: center; }
   .btn-eliminate { background: var(--danger); color: var(--ink); }
   .btn-eliminate:hover { filter: brightness(1.1); }
+  .btn-won { background: var(--gold); color: var(--ink); }
+  .btn-won:hover { filter: brightness(1.1); }
+
+  /* Sticky bottom action bar — the every-tap core loop */
+  .play-action-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+  }
+  .pab-main { display: flex; gap: 8px; max-width: 900px; margin: 0 auto; }
+  .pab-btn {
+    border: none; cursor: pointer; font-family: ui-monospace, monospace; font-weight: 800;
+    padding: 16px 8px; font-size: 0.92rem; letter-spacing: 0.01em; transition: filter 0.1s, transform 0.05s;
+  }
+  .pab-btn:active { transform: scale(0.97); }
+  .pab-prev { background: none; border: 1px solid var(--line); color: var(--paper-dim2); flex: 0 0 84px; }
+  .pab-endturn { background: var(--sage); color: var(--ink); flex: 1; }
+  .pab-next { background: var(--gold-dim); color: var(--ink); flex: 1.4; }
+  .pab-next:hover, .pab-endturn:hover { filter: brightness(1.1); }
+  .pab-undo { max-width: 900px; margin: 0 auto 8px; }
+  .pab-undo-inner {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--panel-raised); border: 1px solid var(--gold-dim); padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+  .pab-undo-inner button {
+    background: var(--gold); color: var(--ink); border: none; padding: 6px 14px;
+    font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.72rem; cursor: pointer;
+  }
+  /* leave room so the fixed bar never covers the last content */
+  body.has-action-bar .app { padding-bottom: 130px; }
+
+  .game-saved-overlay {
+    display: none; position: fixed; inset: 0; z-index: 60;
+    align-items: center; justify-content: center; background: rgba(10,10,11,0.55); backdrop-filter: blur(2px);
+  }
+  .gso-inner {
+    background: var(--panel); border: 1px solid var(--gold); color: var(--paper);
+    padding: 22px 30px; font-weight: 800; font-size: 1.1rem; text-align: center;
+  }
 
   .life-setup-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
   .life-setup-row:last-of-type { margin-bottom: 0; }
@@ -397,33 +462,26 @@
 
   <!-- PLAY -->
   <section class="view" id="view-play">
-    <div class="subnav">
-      <button class="active" data-sub="phasetracker" onclick="setPlaySub('phasetracker')">Phase Tracker</button>
-      <button data-sub="lifetotal" onclick="setPlaySub('lifetotal')">Life Total</button>
-    </div>
-
     <div id="play-phasetracker">
 
       <!-- SETUP -->
       <div id="gameSetupPanel">
         <div class="panel">
           <h2>Start a game</h2>
+          <p class="setup-hint">Add each player in turn order (seat 1 goes first). Pick their deck, flag Turn 1 Advantage if they had it.</p>
           <div id="gameSetupRows"></div>
           <button class="btn ghost small" onclick="addGameSetupRow()">+ Add player</button>
-          <div style="margin-top:14px;"><button class="btn" onclick="startGame()">Start game</button></div>
+          <div style="margin-top:14px;"><button class="btn btn-start" onclick="startGame()">▶ Start game</button></div>
           <div class="notice" id="gameSetupNotice"></div>
         </div>
       </div>
 
       <!-- ACTIVE GAME -->
       <div id="activeGamePanel" style="display:none;">
-        <div class="panel compact turn-bar">
-          <div class="turn-bar-left">
-            <span class="turn-label">Turn</span>
-            <span class="turn-num turn-num-display" id="turnNumberDisplay">1</span>
-          </div>
-          <div class="now-playing" id="nowPlayingDisplay"></div>
-          <button class="icon-link" onclick="endGame()">end game</button>
+        <div class="now-playing-hero" id="nowPlayingHero">
+          <div class="np-turn-label"><span id="turnNumberDisplay">1</span></div>
+          <div class="np-name" id="nowPlayingName">—</div>
+          <div class="np-deck" id="nowPlayingDeck"></div>
         </div>
 
         <div class="game-roster" id="gameRoster"></div>
@@ -434,20 +492,16 @@
           <p class="phase-desc" id="phaseDesc"></p>
         </div>
 
-        <div class="phase-big-nav">
-          <button class="phase-big-btn ghost" onclick="prevPhase()">← Prev</button>
-          <button class="phase-big-btn" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
-        </div>
-        <div class="phase-quick-actions">
-          <button class="btn btn-endturn" onclick="endTurnNow()">⏭ End turn</button>
-          <button class="btn btn-eliminate" onclick="openEliminateModal()">✕ Eliminate a player</button>
-          <button class="btn small" onclick="openGameWonModal()">🏆 Game won</button>
-        </div>
-
         <div class="phase-stepper" id="phaseStepper"></div>
 
+        <div class="secondary-actions">
+          <button class="btn btn-eliminate" onclick="openEliminateModal()">✕ Eliminate a player</button>
+          <button class="btn btn-won" onclick="openGameWonModal()">🏆 Game won</button>
+          <button class="icon-link" onclick="endGame()">end game (discard)</button>
+        </div>
+
         <div class="panel compact" style="margin-top:14px;">
-          <div class="life-section-label"><span>Turn times this session</span><button class="icon-link" onclick="attachTurnTimesToLog()">attach to next log</button></div>
+          <div class="life-section-label"><span>Turn times this game</span></div>
           <div id="turnTimesList"></div>
         </div>
         <div class="panel compact" style="margin-top:10px;">
@@ -456,35 +510,17 @@
         </div>
       </div>
     </div>
-
-    <div id="play-lifetotal" style="display:none;">
-      <div class="panel compact">
-        <div class="life-setup-row">
-          <span class="turn-label">Start life</span>
-          <div class="life-preset-group" id="lifePresetGroup">
-            <button class="life-preset" data-val="20" onclick="setStartingLife(20)">20</button>
-            <button class="life-preset" data-val="30" onclick="setStartingLife(30)">30</button>
-            <button class="life-preset active" data-val="40" onclick="setStartingLife(40)">40</button>
-            <input type="number" id="startingLifeCustom" class="life-preset-custom" placeholder="custom" min="1" onchange="setStartingLife(this.value)">
-          </div>
-        </div>
-        <div class="life-setup-row">
-          <select id="addExistingPlayerSelect" onchange="onLifePlayerSelectChange()"></select>
-          <select id="addExistingPlayerDeck"></select>
-          <button class="btn ghost small" onclick="addExistingLifePlayer()">+ Add</button>
-        </div>
-        <div class="life-setup-row">
-          <input id="guestPlayerName" placeholder="Guest name (not registered)" style="margin-bottom:0;">
-          <button class="btn ghost small" onclick="addGuestLifePlayer()">+ Add guest</button>
-        </div>
-        <button class="btn small" onclick="newLifeGame()">New game — reset everyone</button>
-        <button class="btn ghost small" onclick="attachLifeStateToLog()">Attach final life/poison to next log</button>
-      </div>
-
-      <div class="life-grid" id="lifeGrid"></div>
-      <div class="empty" id="lifeEmpty">Add players above to start tracking life totals.</div>
-    </div>
   </section>
+
+  <!-- STICKY PLAY ACTION BAR -->
+  <div id="playActionBar" class="play-action-bar" style="display:none;">
+    <div class="pab-undo" id="pabUndo"></div>
+    <div class="pab-main">
+      <button class="pab-btn pab-prev" onclick="prevPhase()">← Prev</button>
+      <button class="pab-btn pab-endturn" onclick="endTurnNow()">End turn ⏭</button>
+      <button class="pab-btn pab-next" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
+    </div>
+  </div>
 
   <!-- LOG GAME -->
   <section class="view active" id="view-log">
@@ -562,6 +598,11 @@
         </table>
       </div>
       <div class="empty" id="boardEmpty">Log a game to populate the leaderboard.</div>
+    </div>
+    <div class="panel">
+      <h2>Hall of Fame &amp; Shame</h2>
+      <div class="hof-grid" id="hofGrid"></div>
+      <div class="empty" id="hofEmpty">Not enough games logged yet.</div>
     </div>
     <div class="panel">
       <h2>Game log</h2>
@@ -912,8 +953,16 @@ document.querySelectorAll('nav button').forEach(btn => {
     if (btn.dataset.view === 'mydecks') renderMyDecksPlayerSelect();
     if (btn.dataset.view === 'play') { refreshGsSelects(); renderPhaseTracker(); }
     if (btn.dataset.view === 'log') renderPendingPlayNotice();
+    updatePlayActionBar();
   });
 });
+// The sticky bar shows only on the Play tab during an active game.
+function updatePlayActionBar() {
+  const onPlay = document.getElementById('view-play').classList.contains('active');
+  const show = onPlay && activeGame;
+  document.getElementById('playActionBar').style.display = show ? 'block' : 'none';
+  document.body.classList.toggle('has-action-bar', !!show);
+}
 function setRegSub(sub) {
   document.querySelectorAll('.subnav button').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
   document.getElementById('reg-players').style.display = sub === 'players' ? 'block' : 'none';
@@ -1383,6 +1432,7 @@ function renderLeaderboard() {
     tbody.appendChild(tr);
   });
   renderGamesLog();
+  renderHallOfFame();
 }
 function renderGamesLog() {
   const tbody = document.querySelector('#gamesTable tbody');
@@ -1400,6 +1450,105 @@ function renderGamesLog() {
       <td class="num mono">${g.playerCount}p · T${g.endTurn}</td>`;
     tbody.appendChild(tr);
   });
+}
+
+// ---------- HALL OF FAME & SHAME (player-level, across all their decks) ----------
+function computeHallOfFame() {
+  const stats = {};
+  DATA.players.forEach(p => { stats[p.id] = { wins: 0, gp: 0, kills: 0, deaths: 0, turnTimes: [], killedFirstCount: 0, killedFirstEligible: 0 }; });
+
+  DATA.games.forEach(g => {
+    g.participants.forEach(pt => {
+      const s = stats[pt.playerId];
+      if (!s) return;
+      s.gp++;
+      if (pt.outcome === 'win') s.wins++;
+      s.kills += (pt.eliminations || []).length;
+    });
+
+    const allElims = [];
+    g.participants.forEach(pt => { (pt.eliminations || []).forEach(e => allElims.push(e)); });
+    allElims.forEach(e => { const s = stats[e.eliminatedPlayerId]; if (s) s.deaths++; });
+
+    // "Killed first" is a ratio, and 2-player games have no meaningful signal here — skip them.
+    if (g.playerCount > 2 && allElims.length) {
+      const minTurn = Math.min(...allElims.map(e => e.turn));
+      const firstOutIds = new Set(allElims.filter(e => e.turn === minTurn).map(e => e.eliminatedPlayerId));
+      g.participants.forEach(pt => {
+        const s = stats[pt.playerId];
+        if (!s) return;
+        s.killedFirstEligible++;
+        if (firstOutIds.has(pt.playerId)) s.killedFirstCount++;
+      });
+    }
+
+    (g.extras || []).forEach(ex => {
+      const s = stats[ex.playerId];
+      if (s && ex.totalTurnSeconds != null) s.turnTimes.push(ex.totalTurnSeconds);
+    });
+  });
+
+  function pickBest(scoreFn, filterFn) {
+    let bestId = null, bestScore = -Infinity;
+    Object.keys(stats).forEach(pid => {
+      const s = stats[pid];
+      if (!filterFn(s)) return;
+      const score = scoreFn(s);
+      if (score > bestScore) { bestScore = score; bestId = pid; }
+    });
+    return bestId;
+  }
+
+  const result = {};
+
+  const winRatePid = pickBest(s => s.wins / s.gp, s => s.gp > 0);
+  if (winRatePid) {
+    const s = stats[winRatePid];
+    result.winRate = { playerId: winRatePid, value: (s.wins / s.gp * 100).toFixed(0) + '%', sub: `${s.wins}/${s.gp} games` };
+  }
+
+  const kdPid = pickBest(s => s.deaths > 0 ? s.kills / s.deaths : s.kills, s => s.kills > 0 || s.deaths > 0);
+  if (kdPid) {
+    const s = stats[kdPid];
+    const ratio = s.deaths > 0 ? (s.kills / s.deaths) : s.kills;
+    result.kd = { playerId: kdPid, value: ratio.toFixed(2), sub: `${s.kills}K / ${s.deaths}D` };
+  }
+
+  const turnPid = pickBest(s => s.turnTimes.reduce((a, b) => a + b, 0) / s.turnTimes.length, s => s.turnTimes.length > 0);
+  if (turnPid) {
+    const s = stats[turnPid];
+    const avg = s.turnTimes.reduce((a, b) => a + b, 0) / s.turnTimes.length;
+    result.avgTurnTime = { playerId: turnPid, value: formatSeconds(Math.round(avg)), sub: `avg over ${s.turnTimes.length} game${s.turnTimes.length === 1 ? '' : 's'}` };
+  }
+
+  const killedFirstPid = pickBest(s => s.killedFirstCount / s.killedFirstEligible, s => s.killedFirstEligible > 0);
+  if (killedFirstPid) {
+    const s = stats[killedFirstPid];
+    result.killedFirst = { playerId: killedFirstPid, value: (s.killedFirstCount / s.killedFirstEligible * 100).toFixed(0) + '%', sub: `${s.killedFirstCount}/${s.killedFirstEligible} games (3+ players)` };
+  }
+
+  return result;
+}
+function hofCardHtml(kind, label, award) {
+  const player = DATA.players.find(p => p.id === award.playerId);
+  return `<div class="hof-card hof-${kind}">
+    <div class="hof-label">${label}</div>
+    <div class="hof-name">${escapeHtml(player ? player.name : '—')}</div>
+    <div class="hof-value">${award.value}</div>
+    <div class="hof-sub">${escapeHtml(award.sub)}</div>
+  </div>`;
+}
+function renderHallOfFame() {
+  const wrap = document.getElementById('hofGrid');
+  if (!wrap) return;
+  const hof = computeHallOfFame();
+  const cards = [];
+  if (hof.winRate) cards.push(hofCardHtml('fame', '🏆 Highest win rate', hof.winRate));
+  if (hof.kd) cards.push(hofCardHtml('fame', '⚔️ Best K/D ratio', hof.kd));
+  if (hof.killedFirst) cards.push(hofCardHtml('shame', '💀 Killed first most often', hof.killedFirst));
+  if (hof.avgTurnTime) cards.push(hofCardHtml('shame', '🐌 Longest average turn', hof.avgTurnTime));
+  document.getElementById('hofEmpty').style.display = cards.length ? 'none' : 'block';
+  wrap.innerHTML = cards.join('');
 }
 
 function openGameDetail(gameId) {
@@ -1454,17 +1603,9 @@ function renderAll() {
   renderPlayers(); populateDeckPlayerSelect(); renderDecks();
   renderMyDecksPlayerSelect(); renderLeaderboard(); refreshParticipantSelects();
   refreshGsSelects(); renderPhaseTracker();
-  populateAddExistingPlayerSelect(); renderLifeTotal();
 }
 
 // ---------- PLAY / PHASE TRACKER ----------
-function setPlaySub(sub) {
-  document.querySelectorAll('#view-play .subnav button').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
-  document.getElementById('play-phasetracker').style.display = sub === 'phasetracker' ? 'block' : 'none';
-  document.getElementById('play-lifetotal').style.display = sub === 'lifetotal' ? 'block' : 'none';
-  if (sub === 'lifetotal') { populateAddExistingPlayerSelect(); renderLifeTotal(); }
-}
-
 const PHASES = [
   { abbr: 'UT', label: 'Untap', group: 'Beginning',
     desc: "Untap all your permanents. No one gets priority — no spells or abilities can be played here." },
@@ -1585,18 +1726,57 @@ function startGame() {
   turnTimes = {};
   phaseIndex = 0;
   turnStartTs = Date.now();
+  clearUndo();
   document.getElementById('gameSetupPanel').style.display = 'none';
   document.getElementById('activeGamePanel').style.display = 'block';
   renderPhaseTracker();
+  window.scrollTo(0, 0);
 }
 function endGame() {
-  if (!confirm('End this game and return to setup? Any turn times already logged stay available to attach.')) return;
+  if (!confirm('Discard this game without saving? Nothing will be sent to the leaderboard.')) return;
   activeGame = null;
+  clearUndo();
   document.getElementById('gameSetupPanel').style.display = 'block';
   document.getElementById('activeGamePanel').style.display = 'none';
   document.getElementById('gameSetupRows').innerHTML = '';
   document.getElementById('gameSetupNotice').textContent = '';
   gsRowCount = 0;
+  updatePlayActionBar();
+}
+
+// ---------- UNDO (single-level, for the easy-to-misclick actions) ----------
+let undoSnapshot = null;
+let undoTimer = null;
+function snapshotForUndo(label) {
+  undoSnapshot = { label, state: JSON.parse(JSON.stringify({
+    playOrder: activeGame.playOrder, seatIndex: activeGame.seatIndex,
+    roundNumber: activeGame.roundNumber, eliminations: activeGame.eliminations
+  })), phaseIndex, turnTimes: JSON.parse(JSON.stringify(turnTimes)) };
+  renderUndo();
+  if (undoTimer) clearTimeout(undoTimer);
+  undoTimer = setTimeout(clearUndo, 8000);
+}
+function renderUndo() {
+  const wrap = document.getElementById('pabUndo');
+  if (!wrap) return;
+  if (!undoSnapshot) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div class="pab-undo-inner"><span>${escapeHtml(undoSnapshot.label)}</span><button onclick="doUndo()">Undo</button></div>`;
+}
+function doUndo() {
+  if (!undoSnapshot || !activeGame) return;
+  activeGame.playOrder = undoSnapshot.state.playOrder;
+  activeGame.seatIndex = undoSnapshot.state.seatIndex;
+  activeGame.roundNumber = undoSnapshot.state.roundNumber;
+  activeGame.eliminations = undoSnapshot.state.eliminations;
+  phaseIndex = undoSnapshot.phaseIndex;
+  turnTimes = undoSnapshot.turnTimes;
+  clearUndo();
+  renderPhaseTracker();
+}
+function clearUndo() {
+  undoSnapshot = null;
+  if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+  renderUndo();
 }
 
 // ---------- PHASE TRACKER (active game) ----------
@@ -1608,8 +1788,9 @@ function renderPhaseTracker() {
   const current = activeGame.playOrder[activeGame.seatIndex];
   const currentPlayer = DATA.players.find(p => p.id === current.playerId);
   const currentDeck = DATA.decks.find(d => d.id === current.deckId);
-  document.getElementById('nowPlayingDisplay').textContent =
-    `${currentPlayer ? currentPlayer.name : '—'}${currentDeck ? ' · ' + currentDeck.name : ''}${current.t1a ? ' · T1A' : ''}`;
+  document.getElementById('nowPlayingName').textContent = currentPlayer ? currentPlayer.name : '—';
+  document.getElementById('nowPlayingDeck').textContent =
+    `${currentDeck ? currentDeck.name : ''}${current.t1a ? ' · T1A' : ''}`;
 
   document.getElementById('gameRoster').innerHTML = activeGame.playOrder.map((p, i) => {
     const player = DATA.players.find(x => x.id === p.playerId);
@@ -1637,9 +1818,10 @@ function renderPhaseTracker() {
   document.getElementById('phaseGroupLabel').textContent = phase.group;
   document.getElementById('phaseName').textContent = phase.label;
   document.getElementById('phaseDesc').textContent = phase.desc;
-  document.getElementById('nextPhaseBtn').textContent = phaseIndex === PHASES.length - 1 ? 'End Turn →' : 'Next →';
+  document.getElementById('nextPhaseBtn').textContent = phaseIndex === PHASES.length - 1 ? 'End turn ⏭' : 'Next →';
   renderTurnTimes();
   renderElimSessionList();
+  updatePlayActionBar();
 }
 function renderTurnTimes() {
   const wrap = document.getElementById('turnTimesList');
@@ -1678,6 +1860,7 @@ function prevPhase() {
 }
 function endTurnNow() {
   if (!activeGame) return;
+  snapshotForUndo('Turn ended');
   closeTurnSegment(); // credits elapsed time to the player whose turn just ended
   advanceSeat();
   phaseIndex = 0;
@@ -1713,6 +1896,7 @@ function closeEliminateModal() { document.getElementById('eliminateModal').class
 function confirmEliminate() {
   const targetId = document.getElementById('elimTargetSelect').value;
   if (!targetId) return;
+  snapshotForUndo('Player eliminated');
   const byId = document.getElementById('elimBySelect').value || null;
   const turn = Number(document.getElementById('elimTurnInput').value) || activeGame.roundNumber;
   const p = activeGame.playOrder.find(x => x.playerId === targetId);
@@ -1741,46 +1925,63 @@ function confirmGameWon() {
   closeGameWonModal();
   sendActiveGameToLog(winnerId);
 }
-function sendActiveGameToLog(winnerId) {
+async function sendActiveGameToLog(winnerId) {
   const g = activeGame;
+  closeTurnSegment(); // final credit for the last active turn
 
-  // Carry turn times captured this session along automatically too.
-  const filtered = {};
-  Object.keys(turnTimes).forEach(pid => { if (DATA.players.some(p => p.id === pid)) filtered[pid] = turnTimes[pid]; });
-  if (Object.keys(filtered).length) { pendingPlayData.turnTimes = filtered; }
-
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === 'log'));
-  document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-log'));
-
-  document.getElementById('gameDate').value = todayStr();
-  document.getElementById('gameEndTurn').value = g.roundNumber;
-  document.getElementById('participantsWrap').innerHTML = '';
-  participantRowCount = 0;
-
-  g.playOrder.forEach((p, i) => {
+  const participants = g.playOrder.map((p, i) => {
     const deck = DATA.decks.find(d => d.id === p.deckId);
     const elims = g.eliminations
       .filter(e => e.eliminatorId === p.playerId)
       .map(e => ({ eliminatedPlayerId: e.eliminatedPlayerId, turn: e.turn }));
-    const pt = {
+    return {
       playerId: p.playerId, deckId: p.deckId, pilotId: p.playerId,
       outcome: p.playerId === winnerId ? 'win' : 'loss',
       threatenedWin: false, threatenedTurn: null,
       seat: i + 1, t1a: p.t1a, eliminations: elims,
       deckEdition: deck ? deck.edition : null
     };
-    addParticipantRow();
-    populateParticipantRow('row_' + participantRowCount, pt);
   });
 
-  activeGame = null;
-  document.getElementById('gameSetupPanel').style.display = 'block';
-  document.getElementById('activeGamePanel').style.display = 'none';
-  document.getElementById('gameSetupRows').innerHTML = '';
-  document.getElementById('gameSetupNotice').textContent = '';
-  gsRowCount = 0;
+  const extras = {};
+  const filtered = {};
+  Object.keys(turnTimes).forEach(pid => { if (DATA.players.some(p => p.id === pid)) filtered[pid] = turnTimes[pid]; });
+  if (Object.keys(filtered).length) extras.turnTimes = filtered;
 
-  renderPendingPlayNotice();
+  const payload = { id: uid('g'), date: todayStr(), endTurn: g.roundNumber, playerCount: participants.length, participants };
+  if (Object.keys(extras).length) payload.extras = extras;
+
+  showGameSavedOverlay('Saving to leaderboard…', false);
+  const result = await apiPost('logGame', payload);
+
+  if (result && result.ok) {
+    activeGame = null;
+    turnTimes = {};
+    clearUndo();
+    document.getElementById('gameSetupPanel').style.display = 'block';
+    document.getElementById('activeGamePanel').style.display = 'none';
+    document.getElementById('gameSetupRows').innerHTML = '';
+    document.getElementById('gameSetupNotice').textContent = '';
+    gsRowCount = 0;
+    updatePlayActionBar();
+    showGameSavedOverlay('✓ Game saved to leaderboard', true);
+  } else {
+    showGameSavedOverlay('Save failed — check connection and try again', true);
+  }
+}
+function showGameSavedOverlay(msg, dismissable) {
+  let el = document.getElementById('gameSavedOverlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gameSavedOverlay';
+    el.className = 'game-saved-overlay';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<div class="gso-inner">${escapeHtml(msg)}</div>`;
+  el.style.display = 'flex';
+  if (dismissable) {
+    setTimeout(() => { if (el) el.style.display = 'none'; }, 2200);
+  }
 }
 document.getElementById('gameWonModal').addEventListener('click', (e) => { if (e.target.id === 'gameWonModal') closeGameWonModal(); });
 
@@ -1792,242 +1993,6 @@ function attachTurnTimesToLog() {
   renderPendingPlayNotice();
 }
 
-// ---------- PLAY / LIFE TOTAL TRACKER ----------
-// Entirely in-memory/ephemeral, like the phase tracker — no backend calls.
-let lifePlayers = [];
-let startingLife = 40;
-
-function setStartingLife(val) {
-  const num = Number(val);
-  if (!num || num < 1) return;
-  startingLife = num;
-  document.querySelectorAll('.life-preset').forEach(b => b.classList.toggle('active', Number(b.dataset.val) === num));
-}
-
-const COLOR_HEX = { W: '#e8dfc0', U: '#3b82c4', B: '#6b5b95', R: '#c0392b', G: '#2e8b57' };
-
-function populateAddExistingPlayerSelect() {
-  const sel = document.getElementById('addExistingPlayerSelect');
-  if (!sel) return;
-  const inSession = new Set(lifePlayers.map(p => p.sourcePlayerId).filter(Boolean));
-  const available = DATA.players.filter(p => !inSession.has(p.id));
-  sel.innerHTML = available.length
-    ? available.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
-    : '<option value="">No more registered players</option>';
-  onLifePlayerSelectChange();
-}
-function onLifePlayerSelectChange() {
-  const playerId = document.getElementById('addExistingPlayerSelect').value;
-  const deckSel = document.getElementById('addExistingPlayerDeck');
-  if (!deckSel) return;
-  const decks = DATA.decks.filter(d => d.playerId === playerId);
-  deckSel.innerHTML = '<option value="">No deck (just tracking)</option>' +
-    decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
-}
-
-function newLifePlayerObj(name, sourcePlayerId, deckId) {
-  const deck = deckId ? DATA.decks.find(d => d.id === deckId) : null;
-  const suggestedColor = (deck && deck.colors && deck.colors.length) ? COLOR_HEX[deck.colors[0]] : null;
-  return {
-    id: uid('lp'), sourcePlayerId, name, deckId: deckId || null,
-    life: startingLife, poison: 0, commanderDamage: {}, counters: [], eliminated: false,
-    cardColor: suggestedColor
-  };
-}
-function addExistingLifePlayer() {
-  const sel = document.getElementById('addExistingPlayerSelect');
-  const id = sel.value;
-  if (!id) return;
-  const player = DATA.players.find(p => p.id === id);
-  if (!player) return;
-  const deckId = document.getElementById('addExistingPlayerDeck').value || null;
-  lifePlayers.push(newLifePlayerObj(player.name, id, deckId));
-  populateAddExistingPlayerSelect();
-  renderLifeTotal();
-}
-function addGuestLifePlayer() {
-  const input = document.getElementById('guestPlayerName');
-  const name = input.value.trim();
-  if (!name) return;
-  lifePlayers.push(newLifePlayerObj(name, null, null));
-  input.value = '';
-  renderLifeTotal();
-}
-function setCardColor(id, val) {
-  const p = lifePlayers.find(pl => pl.id === id); if (!p) return;
-  p.cardColor = val;
-  renderLifeTotal();
-}
-function clearCardColor(id) {
-  const p = lifePlayers.find(pl => pl.id === id); if (!p) return;
-  p.cardColor = null;
-  renderLifeTotal();
-}
-function removeLifePlayer(id) {
-  lifePlayers = lifePlayers.filter(p => p.id !== id);
-  lifePlayers.forEach(p => { delete p.commanderDamage[id]; });
-  populateAddExistingPlayerSelect();
-  renderLifeTotal();
-}
-function adjustLife(id, delta) {
-  const p = lifePlayers.find(pl => pl.id === id); if (!p) return;
-  p.life += delta;
-  renderLifeTotal();
-}
-function adjustPoison(id, delta) {
-  const p = lifePlayers.find(pl => pl.id === id); if (!p) return;
-  p.poison = Math.max(0, p.poison + delta);
-  renderLifeTotal();
-}
-function adjustCmdDamage(fromId, toId, delta) {
-  const p = lifePlayers.find(pl => pl.id === toId); if (!p) return;
-  p.commanderDamage[fromId] = Math.max(0, (p.commanderDamage[fromId] || 0) + delta);
-  renderLifeTotal();
-}
-function addNamedCounter(playerId, name) {
-  const p = lifePlayers.find(pl => pl.id === playerId); if (!p) return;
-  if (p.counters.some(c => c.name.toLowerCase() === name.toLowerCase())) return;
-  p.counters.push({ id: uid('ct'), name, value: 0 });
-  renderLifeTotal();
-}
-function addCounterPrompt(playerId) {
-  const name = window.prompt('Counter name (e.g. Rad, Blood, Loyalty):');
-  if (!name || !name.trim()) return;
-  addNamedCounter(playerId, name.trim());
-}
-function adjustCounter(playerId, counterId, delta) {
-  const p = lifePlayers.find(pl => pl.id === playerId); if (!p) return;
-  const c = p.counters.find(ct => ct.id === counterId); if (!c) return;
-  c.value += delta;
-  renderLifeTotal();
-}
-function removeCounter(playerId, counterId) {
-  const p = lifePlayers.find(pl => pl.id === playerId); if (!p) return;
-  p.counters = p.counters.filter(c => c.id !== counterId);
-  renderLifeTotal();
-}
-function toggleEliminated(id) {
-  const p = lifePlayers.find(pl => pl.id === id); if (!p) return;
-  p.eliminated = !p.eliminated;
-  renderLifeTotal();
-}
-function newLifeGame() {
-  if (!lifePlayers.length) return;
-  if (!confirm('Reset life, poison, counters, and commander damage for everyone to start a new game?')) return;
-  lifePlayers.forEach(p => {
-    p.life = startingLife; p.poison = 0; p.commanderDamage = {}; p.counters = []; p.eliminated = false;
-  });
-  renderLifeTotal();
-}
-
-// Bridges the ephemeral Play tools into the (also manual) Log Game form.
-// Nothing here is automatic — you explicitly attach a snapshot, it rides
-// along with the next game you save, then clears.
-let pendingPlayData = { turnTimes: null, finalLife: null, finalPoison: null };
-
-function attachLifeStateToLog() {
-  const finalLife = {}, finalPoison = {};
-  lifePlayers.forEach(p => {
-    if (p.sourcePlayerId) { finalLife[p.sourcePlayerId] = p.life; finalPoison[p.sourcePlayerId] = p.poison; }
-  });
-  if (!Object.keys(finalLife).length) { alert('No registered players in this life session to attach (guests without a player link are skipped).'); return; }
-  pendingPlayData.finalLife = finalLife;
-  pendingPlayData.finalPoison = finalPoison;
-  renderPendingPlayNotice();
-}
-
-function renderPendingPlayNotice() {
-  const el = document.getElementById('pendingPlayNotice');
-  if (!el) return;
-  const parts = [];
-  if (pendingPlayData.turnTimes) parts.push(`turn times for ${Object.keys(pendingPlayData.turnTimes).length} player(s)`);
-  if (pendingPlayData.finalLife) parts.push(`final life/poison for ${Object.keys(pendingPlayData.finalLife).length} player(s)`);
-  el.textContent = parts.length ? 'Ready to attach: ' + parts.join(' · ') : '';
-}
-
-function renderLifeTotal() {
-  const grid = document.getElementById('lifeGrid');
-  if (!grid) return; // view not in DOM yet
-  document.getElementById('lifeEmpty').style.display = lifePlayers.length ? 'none' : 'block';
-  grid.innerHTML = lifePlayers.map(p => {
-    const others = lifePlayers.filter(o => o.id !== p.id);
-    const deck = p.deckId ? DATA.decks.find(d => d.id === p.deckId) : null;
-    const borderColor = p.cardColor || 'var(--line)';
-    return `
-    <div class="life-card ${p.eliminated ? 'eliminated' : ''}" style="border-left: 5px solid ${borderColor};">
-      <div class="life-card-head">
-        <div>
-          <div class="life-card-name">${escapeHtml(p.name)}</div>
-          ${deck ? `<div class="history-note">${escapeHtml(deck.name)} ${pipsFor(deck.colors)}${commanderLine(deck) ? ' · ' + commanderLine(deck) : ''}</div>` : ''}
-        </div>
-        <div class="life-card-actions">
-          <input type="color" class="color-swatch" value="${p.cardColor || '#8b8779'}" onchange="setCardColor('${p.id}', this.value)" title="Card color">
-          <button class="icon-link" onclick="toggleEliminated('${p.id}')">${p.eliminated ? 'revive' : 'eliminate'}</button>
-          <button class="life-remove-x" onclick="removeLifePlayer('${p.id}')" title="Remove from session">×</button>
-        </div>
-      </div>
-
-      <div class="life-life-row">
-        <button class="life-btn minus" onclick="adjustLife('${p.id}',-1)">−</button>
-        <div class="life-number">${p.life}</div>
-        <button class="life-btn plus" onclick="adjustLife('${p.id}',1)">+</button>
-      </div>
-      <div class="life-small-row">
-        <button class="life-small-btn" onclick="adjustLife('${p.id}',-5)">−5</button>
-        <button class="life-small-btn" onclick="adjustLife('${p.id}',5)">+5</button>
-      </div>
-
-      <div class="life-section">
-        <div class="life-section-label"><span>${p.poison >= 10 ? 'Poisoned out' : 'Infect / poison'}</span></div>
-        <div class="counter-row ${p.poison >= 8 ? 'danger' : ''}">
-          <span>Poison counters</span>
-          <div class="counter-controls">
-            <button class="counter-mini-btn" onclick="adjustPoison('${p.id}',-1)">−</button>
-            <span class="counter-value">${p.poison}</span>
-            <button class="counter-mini-btn" onclick="adjustPoison('${p.id}',1)">+</button>
-          </div>
-        </div>
-      </div>
-
-      ${others.length ? `
-      <div class="life-section">
-        <div class="life-section-label"><span>Commander damage taken</span></div>
-        ${others.map(op => {
-          const dmg = p.commanderDamage[op.id] || 0;
-          return `<div class="counter-row ${dmg >= 21 ? 'danger' : ''}">
-            <span>from ${escapeHtml(op.name)}</span>
-            <div class="counter-controls">
-              <button class="counter-mini-btn" onclick="adjustCmdDamage('${op.id}','${p.id}',-1)">−</button>
-              <span class="counter-value">${dmg}</span>
-              <button class="counter-mini-btn" onclick="adjustCmdDamage('${op.id}','${p.id}',1)">+</button>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>` : ''}
-
-      <div class="life-section">
-        <div class="life-section-label">
-          <span>Counters</span>
-          <button class="icon-link" onclick="addCounterPrompt('${p.id}')">+ custom</button>
-        </div>
-        <div class="life-small-row" style="justify-content:flex-start; margin-bottom:8px;">
-          <button class="life-small-btn" onclick="addNamedCounter('${p.id}','Energy')">+ Energy</button>
-          <button class="life-small-btn" onclick="addNamedCounter('${p.id}','Experience')">+ Experience</button>
-        </div>
-        ${p.counters.map(c => `
-          <div class="counter-row">
-            <span>${escapeHtml(c.name)}</span>
-            <div class="counter-controls">
-              <button class="counter-mini-btn" onclick="adjustCounter('${p.id}','${c.id}',-1)">−</button>
-              <span class="counter-value">${c.value}</span>
-              <button class="counter-mini-btn" onclick="adjustCounter('${p.id}','${c.id}',1)">+</button>
-              <button class="life-remove-x" onclick="removeCounter('${p.id}','${c.id}')">×</button>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
 
 loadData();
 </script>
