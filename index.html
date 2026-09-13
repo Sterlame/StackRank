@@ -1572,7 +1572,6 @@ function openDeckModal(deckId) {
   const posY = (deck.coverImagePositionY != null) ? deck.coverImagePositionY : 30;
   if (deck.coverImageUrl) {
     headerEl.style.display = 'block';
-    headerImg.onerror = () => { headerEl.style.display = 'none'; };
     headerImg.src = deck.coverImageUrl;
     headerImg.style.objectPosition = `center ${posY}%`;
   } else {
