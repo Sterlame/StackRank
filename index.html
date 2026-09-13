@@ -335,6 +335,36 @@
   }
   .pod-power { font-family: ui-monospace, monospace; font-weight: 700; color: var(--sage); flex: none; }
   .pod-uneven-note { color: var(--paper-dim2); font-size: 0.75rem; font-style: italic; margin-top: 4px; }
+
+  .deck-modal-header {
+    margin: 4px -24px 16px -24px; height: 130px;
+    background-size: cover; background-position: center; background-color: var(--panel-raised);
+  }
+  .btn-decklist {
+    display: block; width: 100%; text-align: center; background: none; border: 1px solid var(--line);
+    color: var(--paper-dim2); font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.72rem;
+    letter-spacing: 0.02em; padding: 10px; cursor: pointer; transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .btn-decklist.has-list {
+    border-color: #4a9fe0; color: #6db4ea;
+    box-shadow: 0 0 10px rgba(74,159,224,0.45), inset 0 0 6px rgba(74,159,224,0.15);
+  }
+  .btn-decklist:hover { border-color: var(--gold-dim); color: var(--paper); }
+  .btn-decklist.has-list:hover { border-color: #6db4ea; color: #8cc4ee; }
+
+  .art-results { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .art-thumb {
+    width: 76px; height: 54px; background-size: cover; background-position: center;
+    border: 2px solid var(--line); cursor: pointer; transition: border-color 0.15s;
+  }
+  .art-thumb:hover { border-color: var(--gold-dim); }
+  .art-thumb.selected { border-color: var(--gold); }
+
+  .decklist-body {
+    white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.82rem; line-height: 1.65;
+    max-height: 55vh; overflow-y: auto; color: var(--paper); margin: 14px 0 0; background: var(--ink);
+    border: 1px solid var(--line); padding: 14px;
+  }
   .btn-start { font-size: 0.85rem; padding: 12px 22px; }
 
   .game-roster { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -855,9 +885,15 @@
       the most aggressive deck in your pod (not a fixed number, so it stays fair as more
       games get logged).
     </div>
-    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6; margin-bottom: 12px;">
       <strong>25% speed</strong> — how fast the deck's wins close out, scaled against the
       fastest and slowest average win turns in your pod.
+    </div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
+      Win rate is also eased toward a neutral 50% for decks with fewer than 5
+      games logged — otherwise a single lucky win reads as a "100%" deck. A
+      <strong>~</strong> before the number means it's still provisional; it firms up as
+      more games get played.
     </div>
   </div>
 </div>
@@ -881,6 +917,15 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="decklistModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDecklistModal()">close ×</button>
+    <h3 id="decklistModalTitle"></h3>
+    <div class="modal-sub">Pasted decklist</div>
+    <pre id="decklistModalBody" class="decklist-body"></pre>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="gameDetailModal">
   <div class="modal">
     <button class="modal-close" onclick="closeGameDetailModal()">close ×</button>
@@ -898,12 +943,15 @@
 <div class="modal-backdrop" id="deckModal">
   <div class="modal">
     <button class="modal-close" onclick="closeDeckModal()">close ×</button>
+    <div id="deckModalHeader" class="deck-modal-header" style="display:none;"></div>
     <h3 id="modalDeckName"></h3>
     <div class="history-note" id="modalDeckCommander" style="margin-bottom: 4px;"></div>
     <div class="modal-sub" id="modalDeckMeta"></div>
     <div id="modalDeckStats" style="margin-bottom: 14px;"></div>
 
-    <div style="margin-bottom: 16px;">
+    <button type="button" class="btn-decklist" id="viewDecklistBtn" onclick="openDecklistModal()">📋 View deck list</button>
+
+    <div style="margin-bottom: 16px; margin-top: 10px;">
       <button class="icon-link" onclick="toggleDeckEdit()" id="deckEditToggle">edit deck details</button>
       <div id="deckEditWrap" style="display:none; margin-top:12px;">
         <div class="row">
@@ -932,6 +980,18 @@
           <label class="color-check"><input type="checkbox" value="R"> 🔴 Red</label>
           <label class="color-check"><input type="checkbox" value="G"> 🟢 Green</label>
         </div>
+
+        <label>Cover image</label>
+        <div class="row">
+          <div><input id="editDeckArtSearch" placeholder="Search a card name (e.g. the commander)"></div>
+        </div>
+        <button type="button" class="btn ghost small" onclick="searchDeckArt()">🔍 Search art</button>
+        <div id="deckArtResults" class="art-results"></div>
+        <div class="history-note" id="deckArtSelectedLabel" style="margin: 8px 0 14px;"></div>
+
+        <label>Decklist</label>
+        <textarea id="editDeckDecklist" rows="8" placeholder="Paste your decklist here, one card per line…"></textarea>
+
         <button class="btn small" onclick="saveDeckEdits()">Save changes</button>
       </div>
     </div>
@@ -989,7 +1049,7 @@
 let DATA = { players: [], decks: [], games: [] };
 // The pod's shared backend — hardcoded so the app connects automatically.
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
-const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwEueUNZf8Y8dkhzhC4u2X9ZNSwv05nlo2AJ19rAsg7c7pn_PWlIfMyPcmc4Gr8Z9sm/exec';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwBmh3MUC08G_-bUgHqGFX3LHeeP2GlrHryYtJP3Q2Puya4f7Wqna4qitPhROHXitXAGg/exec';
 
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
@@ -1297,6 +1357,19 @@ function openDeckModal(deckId) {
   const cmd = commanderLine(deck);
   document.getElementById('modalDeckCommander').textContent = cmd || '';
   document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket} · Current: ${deck.edition}`;
+
+  const headerEl = document.getElementById('deckModalHeader');
+  if (deck.coverImageUrl) {
+    headerEl.style.display = 'block';
+    headerEl.style.backgroundImage = `url('${deck.coverImageUrl}')`;
+  } else {
+    headerEl.style.display = 'none';
+    headerEl.style.backgroundImage = '';
+  }
+
+  const decklistBtn = document.getElementById('viewDecklistBtn');
+  decklistBtn.classList.toggle('has-list', !!(deck.decklist && deck.decklist.trim()));
+
   const dstats = computeDeckStats(deck.id);
   document.getElementById('modalDeckStats').innerHTML = dstats.gp ? `
     <div class="counter-row"><span>Games played</span><span class="counter-value">${dstats.gp}</span></div>
@@ -1322,8 +1395,58 @@ function openDeckModal(deckId) {
   document.getElementById('editDeckCommander').value = deck.commander || '';
   document.getElementById('editDeckCommanderPartner').value = deck.commanderPartner || '';
   document.querySelectorAll('#editDeckColors input').forEach(c => { c.checked = (deck.colors || []).includes(c.value); });
+  document.getElementById('editDeckDecklist').value = deck.decklist || '';
+  document.getElementById('editDeckArtSearch').value = deck.commander || '';
+  document.getElementById('deckArtResults').innerHTML = '';
+  deckArtSearchResults = [];
+  selectedCoverImage = deck.coverImageUrl ? { url: deck.coverImageUrl, name: deck.coverImageCardName || '' } : null;
+  document.getElementById('deckArtSelectedLabel').textContent = deck.coverImageUrl
+    ? `Current cover: ${deck.coverImageCardName || 'custom art'}` : '';
 
   document.getElementById('deckModal').classList.add('active');
+}
+function openDecklistModal() {
+  const deck = DATA.decks.find(d => d.id === activeDeckId);
+  if (!deck) return;
+  document.getElementById('decklistModalTitle').textContent = deck.name;
+  document.getElementById('decklistModalBody').textContent = (deck.decklist && deck.decklist.trim())
+    ? deck.decklist : 'No decklist pasted yet — open "edit deck details" to add one.';
+  document.getElementById('decklistModal').classList.add('active');
+}
+function closeDecklistModal() { document.getElementById('decklistModal').classList.remove('active'); }
+document.getElementById('decklistModal').addEventListener('click', (e) => { if (e.target.id === 'decklistModal') closeDecklistModal(); });
+
+let deckArtSearchResults = [];
+let selectedCoverImage = null;
+async function searchDeckArt() {
+  const query = document.getElementById('editDeckArtSearch').value.trim();
+  if (!query) return;
+  const resultsEl = document.getElementById('deckArtResults');
+  resultsEl.innerHTML = '<div class="empty" style="padding:4px 0;">Searching…</div>';
+  try {
+    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent('!"' + query + '"')}&unique=art&order=released`;
+    const res = await fetch(url);
+    if (!res.ok) { resultsEl.innerHTML = '<div class="empty" style="padding:4px 0;">No exact match — try the full card name.</div>'; return; }
+    const json = await res.json();
+    deckArtSearchResults = (json.data || []).map(c => {
+      const img = (c.image_uris && c.image_uris.art_crop) ||
+        (c.card_faces && c.card_faces[0] && c.card_faces[0].image_uris && c.card_faces[0].image_uris.art_crop);
+      return { name: c.name, set: c.set_name, imageUrl: img };
+    }).filter(c => c.imageUrl);
+    if (!deckArtSearchResults.length) { resultsEl.innerHTML = '<div class="empty" style="padding:4px 0;">No art found for that card.</div>'; return; }
+    resultsEl.innerHTML = deckArtSearchResults.slice(0, 12).map((c, i) =>
+      `<div class="art-thumb" onclick="selectDeckArt(${i})" style="background-image:url('${c.imageUrl}')" title="${escapeHtml(c.set)}"></div>`
+    ).join('');
+  } catch (e) {
+    resultsEl.innerHTML = '<div class="empty" style="padding:4px 0;">Could not reach the card database — check your connection.</div>';
+  }
+}
+function selectDeckArt(i) {
+  const c = deckArtSearchResults[i];
+  if (!c) return;
+  selectedCoverImage = { url: c.imageUrl, name: c.name };
+  document.querySelectorAll('.art-thumb').forEach((el, idx) => el.classList.toggle('selected', idx === i));
+  document.getElementById('deckArtSelectedLabel').textContent = `Selected: ${c.name}`;
 }
 function toggleDeckEdit() {
   const wrap = document.getElementById('deckEditWrap');
@@ -1340,7 +1463,13 @@ async function saveDeckEdits() {
   const commander = document.getElementById('editDeckCommander').value.trim();
   const commanderPartner = document.getElementById('editDeckCommanderPartner').value.trim();
   const colors = Array.from(document.querySelectorAll('#editDeckColors input:checked')).map(c => c.value);
-  await apiPost('updateDeck', { id: deck.id, name, bracket, colors, commander, commanderPartner });
+  const decklist = document.getElementById('editDeckDecklist').value;
+  const payload = { id: deck.id, name, bracket, colors, commander, commanderPartner, decklist };
+  if (selectedCoverImage) {
+    payload.coverImageUrl = selectedCoverImage.url;
+    payload.coverImageCardName = selectedCoverImage.name;
+  }
+  await apiPost('updateDeck', payload);
   openDeckModal(deck.id);
 }
 function closeDeckModal() { document.getElementById('deckModal').classList.remove('active'); activeDeckId = null; }
@@ -1446,21 +1575,26 @@ function editGame() {
   if (code !== 'Magic') { alert('Incorrect admin code.'); return; }
   const g = DATA.games.find(x => x.id === activeGameId);
   if (!g) return;
-  editingGameId = g.id;
-  closeGameDetailModal();
+  try {
+    editingGameId = g.id;
+    closeGameDetailModal();
 
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === 'log'));
-  document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-log'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === 'log'));
+    document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-log'));
 
-  document.getElementById('gameDate').value = g.date;
-  document.getElementById('gameEndTurn').value = g.endTurn;
-  document.getElementById('participantsWrap').innerHTML = '';
-  participantRowCount = 0;
-  g.participants.forEach(pt => {
-    addParticipantRow();
-    populateParticipantRow('row_' + participantRowCount, pt);
-  });
-  refreshEditGameBanner();
+    document.getElementById('gameDate').value = g.date;
+    document.getElementById('gameEndTurn').value = g.endTurn;
+    document.getElementById('participantsWrap').innerHTML = '';
+    participantRowCount = 0;
+    g.participants.forEach(pt => {
+      addParticipantRow();
+      populateParticipantRow('row_' + participantRowCount, pt);
+    });
+    refreshEditGameBanner();
+  } catch (err) {
+    console.error('editGame failed:', err);
+    alert('Could not open this game for editing: ' + (err && err.message ? err.message : String(err)) + '\n\nPlease screenshot this message so it can be fixed.');
+  }
 }
 function cancelEditGame() {
   editingGameId = null;
@@ -1519,62 +1653,69 @@ function addKillRow(rowId) {
 }
 async function submitGame() {
   const notice = document.getElementById('logNotice');
-  if (connectionState !== 'connected') {
-    notice.textContent = connectionState === 'connecting'
-      ? 'Still connecting to the backend — wait a moment and try again.'
-      : 'Not connected to the backend — check Settings.';
-    return;
-  }
-  const date = document.getElementById('gameDate').value || todayStr();
-  const endTurn = Number(document.getElementById('gameEndTurn').value);
-  const rows = document.querySelectorAll('#participantsWrap .participant-card');
-  if (rows.length < 2) { notice.textContent = 'Add at least two participants.'; return; }
-  if (!endTurn) { notice.textContent = 'Enter the turn the game ended on.'; return; }
-  const participants = [];
-  let winCount = 0;
-  for (const row of rows) {
-    const playerId = row.querySelector('.pl-select').value;
-    const deckId = row.querySelector('.deck-select').value;
-    const override = row.querySelector('.pilot-override').checked;
-    const altPlayerId = row.querySelector('.alt-pl-select').value;
-    const outcome = row.querySelector('.outcome-select').value;
-    if (!playerId || !deckId) { notice.textContent = 'Every participant needs a player and deck.'; return; }
-    if (outcome === 'win') winCount++;
-    const threatenedWin = row.querySelector('.threatened-check').checked;
-    const threatenedTurn = threatenedWin ? Number(row.querySelector('.threatened-turn-input').value) || null : null;
-    const seatVal = row.querySelector('.seat-input').value;
-    const seat = seatVal ? Number(seatVal) : null;
-    const t1a = row.querySelector('.t1a-check-input').checked;
-    const kills = [];
-    row.querySelectorAll('.kill').forEach(k => {
-      const eliminatedPlayerId = k.querySelector('.kill-eliminated-select').value;
-      const turn = Number(k.querySelector('.kill-turn').value);
-      if (eliminatedPlayerId && turn) kills.push({ eliminatedPlayerId, turn });
-    });
-    participants.push({ playerId, deckId, pilotId: override ? altPlayerId : playerId, outcome, eliminations: kills,
-      threatenedWin, threatenedTurn, seat, t1a,
-      deckEdition: (DATA.decks.find(d => d.id === deckId) || {}).edition || null });
-  }
-  if (winCount !== 1) { notice.textContent = 'Mark exactly one participant as the Win.'; return; }
-  const extras = {};
-  if (pendingPlayData.turnTimes) extras.turnTimes = pendingPlayData.turnTimes;
-  if (pendingPlayData.finalLife) extras.finalLife = pendingPlayData.finalLife;
-  if (pendingPlayData.finalPoison) extras.finalPoison = pendingPlayData.finalPoison;
-  const payload = { id: editingGameId || uid('g'), date, endTurn, playerCount: participants.length, participants };
-  if (Object.keys(extras).length) payload.extras = extras;
-  const action = editingGameId ? 'updateGame' : 'logGame';
-  const wasEditing = !!editingGameId;
-  const result = await apiPost(action, payload);
-  if (result && result.ok) {
-    notice.textContent = wasEditing ? 'Game updated.' : (Object.keys(extras).length ? 'Game saved (play data attached).' : 'Game saved.');
-    document.getElementById('participantsWrap').innerHTML = '';
-    document.getElementById('gameDate').value = '';
-    document.getElementById('gameEndTurn').value = '';
-    participantRowCount = 0;
-    pendingPlayData = { turnTimes: null, finalLife: null, finalPoison: null };
-    renderPendingPlayNotice();
-    editingGameId = null;
-    refreshEditGameBanner();
+  try {
+    if (connectionState !== 'connected') {
+      notice.textContent = connectionState === 'connecting'
+        ? 'Still connecting to the backend — wait a moment and try again.'
+        : 'Not connected to the backend — check Settings.';
+      return;
+    }
+    const date = document.getElementById('gameDate').value || todayStr();
+    const endTurn = Number(document.getElementById('gameEndTurn').value);
+    const rows = document.querySelectorAll('#participantsWrap .participant-card');
+    if (rows.length < 2) { notice.textContent = 'Add at least two participants.'; return; }
+    if (!endTurn) { notice.textContent = 'Enter the turn the game ended on.'; return; }
+    const participants = [];
+    let winCount = 0;
+    for (const row of rows) {
+      const playerId = row.querySelector('.pl-select').value;
+      const deckId = row.querySelector('.deck-select').value;
+      const override = row.querySelector('.pilot-override').checked;
+      const altPlayerId = row.querySelector('.alt-pl-select').value;
+      const outcome = row.querySelector('.outcome-select').value;
+      if (!playerId || !deckId) { notice.textContent = 'Every participant needs a player and deck.'; return; }
+      if (outcome === 'win') winCount++;
+      const threatenedWin = row.querySelector('.threatened-check').checked;
+      const threatenedTurn = threatenedWin ? Number(row.querySelector('.threatened-turn-input').value) || null : null;
+      const seatVal = row.querySelector('.seat-input').value;
+      const seat = seatVal ? Number(seatVal) : null;
+      const t1a = row.querySelector('.t1a-check-input').checked;
+      const kills = [];
+      row.querySelectorAll('.kill').forEach(k => {
+        const eliminatedPlayerId = k.querySelector('.kill-eliminated-select').value;
+        const turn = Number(k.querySelector('.kill-turn').value);
+        if (eliminatedPlayerId && turn) kills.push({ eliminatedPlayerId, turn });
+      });
+      participants.push({ playerId, deckId, pilotId: override ? altPlayerId : playerId, outcome, eliminations: kills,
+        threatenedWin, threatenedTurn, seat, t1a,
+        deckEdition: (DATA.decks.find(d => d.id === deckId) || {}).edition || null });
+    }
+    if (winCount !== 1) { notice.textContent = 'Mark exactly one participant as the Win.'; return; }
+    const extras = {};
+    if (pendingPlayData.turnTimes) extras.turnTimes = pendingPlayData.turnTimes;
+    if (pendingPlayData.finalLife) extras.finalLife = pendingPlayData.finalLife;
+    if (pendingPlayData.finalPoison) extras.finalPoison = pendingPlayData.finalPoison;
+    const payload = { id: editingGameId || uid('g'), date, endTurn, playerCount: participants.length, participants };
+    if (Object.keys(extras).length) payload.extras = extras;
+    const action = editingGameId ? 'updateGame' : 'logGame';
+    const wasEditing = !!editingGameId;
+    const result = await apiPost(action, payload);
+    if (result && result.ok) {
+      notice.textContent = wasEditing ? 'Game updated.' : (Object.keys(extras).length ? 'Game saved (play data attached).' : 'Game saved.');
+      document.getElementById('participantsWrap').innerHTML = '';
+      document.getElementById('gameDate').value = '';
+      document.getElementById('gameEndTurn').value = '';
+      participantRowCount = 0;
+      pendingPlayData = { turnTimes: null, finalLife: null, finalPoison: null };
+      renderPendingPlayNotice();
+      editingGameId = null;
+      refreshEditGameBanner();
+    }
+  } catch (err) {
+    console.error('submitGame failed:', err);
+    const msg = 'Unexpected error while saving: ' + (err && err.message ? err.message : String(err));
+    notice.textContent = msg;
+    alert(msg + '\n\nPlease screenshot this message so it can be fixed.');
   }
 }
 
@@ -1617,6 +1758,12 @@ function computeAllDeckPowers() {
   // faced — so a big-pod win counts for more without penalizing smaller games.
   // Elim and speed are scaled relative to this pod's own field (fastest/most-
   // eliminating deck sets the ceiling) rather than an arbitrary fixed number.
+  //
+  // Win rate is also shrunk toward a neutral 50% baseline in proportion to how
+  // few games a deck has played (full confidence at CONFIDENCE_GAMES games) —
+  // otherwise one lucky win with a 1-game sample reads as a "100%" deck and
+  // dominates the board before there's any real evidence behind it.
+  const CONFIDENCE_GAMES = 5;
   const withGames = all.filter(r => r.gp > 0);
   const maxElimRate = Math.max(0, ...withGames.map(r => r.elimRate));
   const turnedRows = withGames.filter(r => r.avgTurn !== null);
@@ -1624,7 +1771,10 @@ function computeAllDeckPowers() {
   const maxTurn = turnedRows.length ? Math.max(...turnedRows.map(r => r.avgTurn)) : null;
   all.forEach(r => {
     if (r.gp > 0) {
-      const winScore = r.weightedWinRate * 100;
+      const confidence = Math.min(1, r.gp / CONFIDENCE_GAMES);
+      const adjustedWinRate = confidence * r.weightedWinRate + (1 - confidence) * 0.5;
+      r.powerProvisional = r.gp < CONFIDENCE_GAMES;
+      const winScore = adjustedWinRate * 100;
       const elimScore = maxElimRate > 0 ? (r.elimRate / maxElimRate) * 100 : 0;
       let speedScore = 0;
       if (r.avgTurn !== null) {
@@ -1860,7 +2010,7 @@ function renderLeaderboard() {
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(r.deck.id); };
     tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(r.deck.colors)}"></div>${escapeHtml(r.deck.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
-      <td class="num mono power-cell">${r.power}</td>
+      <td class="num mono power-cell" title="${r.powerProvisional ? 'Provisional — fewer than 5 games logged' : ''}">${r.powerProvisional ? '~' : ''}${r.power}</td>
       <td class="num mono" style="color:var(--sage)">${winPct}%</td>
       <td class="num mono">${avgTurn}</td>
       <td class="num mono">${r.gp}</td>`;
