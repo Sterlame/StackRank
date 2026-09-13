@@ -456,15 +456,35 @@
 
   .life-tiles { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
   .life-tile {
+    position: relative; overflow: hidden;
     flex: 0 0 auto; min-width: 84px; border: 1px solid var(--line); background: var(--panel);
-    padding: 10px 12px; text-align: center; cursor: pointer; transition: border-color 0.15s;
+    cursor: pointer; transition: border-color 0.15s;
   }
   .life-tile:hover { border-color: var(--gold-dim); }
   .life-tile.current { border-color: var(--gold); }
   .life-tile.eliminated { opacity: 0.35; text-decoration: line-through; cursor: default; }
-  .life-tile-name { font-family: ui-monospace, monospace; font-size: 0.62rem; font-weight: 700; color: var(--paper-dim2); margin-bottom: 4px; white-space: nowrap; }
+  .life-tile-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; z-index: 0; }
+  .life-tile-scrim { position: absolute; inset: 0; background: rgba(6,6,7,0.18); z-index: 1; }
+  .life-tile-content { position: relative; z-index: 2; padding: 10px 12px; text-align: center; }
+  .life-tile-name { font-family: ui-monospace, monospace; font-size: 0.62rem; font-weight: 700; color: var(--paper-dim2); margin-bottom: 4px; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
   .life-tile-num { font-size: 1.6rem; font-weight: 800; }
+  /* Adaptive contrast: only applied to tiles with a background image, based on its sampled brightness. */
+  .life-tile-num.on-dark-bg { color: #fdfbf6; text-shadow: 0 1px 5px rgba(0,0,0,0.65); }
+  .life-tile-num.on-light-bg { color: #171512; text-shadow: 0 1px 5px rgba(255,255,255,0.65); }
   .life-sheet-row { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .cmd-dmg-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .cmd-dmg-row { display: flex; align-items: center; gap: 8px; }
+  .cmd-dmg-name { flex: 1; font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmd-dmg-out { color: var(--paper-dim2); font-size: 0.72rem; }
+  .cmd-dmg-total { font-family: ui-monospace, monospace; font-weight: 800; font-size: 1rem; min-width: 22px; text-align: center; color: var(--gold); }
+  .cmd-dmg-total.lethal { color: var(--danger); }
+  .cmd-dmg-btn {
+    border: 1px solid var(--line); background: var(--panel-raised); color: var(--paper);
+    font-family: ui-monospace, monospace; font-weight: 800; width: 30px; height: 30px; cursor: pointer; flex: none;
+  }
+  .cmd-dmg-btn:hover { border-color: var(--gold-dim); }
+  .cmd-dmg-btn:disabled { opacity: 0.35; cursor: default; }
+  .cmd-dmg-input { width: 54px; text-align: center; flex: none; }
   .collapse-toggle { cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
   .collapse-arrow { color: var(--gold); font-size: 0.7rem; }
 
@@ -508,11 +528,11 @@
   #activeGamePanel.life-focus .life-tiles.count-4 { grid-template-columns: repeat(2, 1fr); }
   #activeGamePanel.life-focus .life-tile-name { font-size: 0.78rem; }
   /* Fewer players = more room per tile, so numbers scale up; capped at 4 total. */
-  #activeGamePanel.life-focus .life-tiles.count-2 .life-tile { padding: 34px 10px; }
+  #activeGamePanel.life-focus .life-tiles.count-2 .life-tile-content { padding: 34px 10px; }
   #activeGamePanel.life-focus .life-tiles.count-2 .life-tile-num { font-size: 4.6rem; }
-  #activeGamePanel.life-focus .life-tiles.count-3 .life-tile { padding: 22px 8px; }
+  #activeGamePanel.life-focus .life-tiles.count-3 .life-tile-content { padding: 22px 8px; }
   #activeGamePanel.life-focus .life-tiles.count-3 .life-tile-num { font-size: 3.2rem; }
-  #activeGamePanel.life-focus .life-tiles.count-4 .life-tile { padding: 18px 8px; }
+  #activeGamePanel.life-focus .life-tiles.count-4 .life-tile-content { padding: 18px 8px; }
   #activeGamePanel.life-focus .life-tiles.count-4 .life-tile-num { font-size: 2.7rem; }
   #activeGamePanel.life-focus .phase-banner-panel { padding: 8px 10px; margin-bottom: 6px; }
   #activeGamePanel.life-focus .phase-name-big { font-size: 1rem; margin-bottom: 2px; }
@@ -936,6 +956,8 @@
       <button class="life-btn plus" onclick="adjustSheetLife(1)">+1</button>
       <button class="life-btn plus" onclick="adjustSheetLife(5)">+5</button>
     </div>
+    <label style="margin-top:18px;">Commander damage taken</label>
+    <div class="cmd-dmg-wrap" id="cmdDmgRows"></div>
   </div>
 </div>
 
@@ -2631,7 +2653,7 @@ function startGame() {
     if (!playerId || !deckId) { notice.textContent = 'Every seat needs a player and a deck.'; return; }
     playOrder.push({ playerId, deckId, t1a: false, eliminated: false, life: setupLife });
   }
-  activeGame = { playOrder, seatIndex: 0, roundNumber: 1, eliminations: [], startingLife: setupLife };
+  activeGame = { playOrder, seatIndex: 0, roundNumber: 1, eliminations: [], startingLife: setupLife, commanderDamage: {} };
   turnTimes = {};
   phaseIndex = 0;
   turnStartTs = Date.now();
@@ -2691,7 +2713,8 @@ let undoTimer = null;
 function snapshotForUndo(label) {
   undoSnapshot = { label, state: JSON.parse(JSON.stringify({
     playOrder: activeGame.playOrder, seatIndex: activeGame.seatIndex,
-    roundNumber: activeGame.roundNumber, eliminations: activeGame.eliminations
+    roundNumber: activeGame.roundNumber, eliminations: activeGame.eliminations,
+    commanderDamage: activeGame.commanderDamage
   })), phaseIndex, turnTimes: JSON.parse(JSON.stringify(turnTimes)) };
   renderUndo();
   if (undoTimer) clearTimeout(undoTimer);
@@ -2709,6 +2732,7 @@ function doUndo() {
   activeGame.seatIndex = undoSnapshot.state.seatIndex;
   activeGame.roundNumber = undoSnapshot.state.roundNumber;
   activeGame.eliminations = undoSnapshot.state.eliminations;
+  activeGame.commanderDamage = undoSnapshot.state.commanderDamage || {};
   phaseIndex = undoSnapshot.phaseIndex;
   turnTimes = undoSnapshot.turnTimes;
   clearUndo();
@@ -2887,14 +2911,54 @@ function renderLifeTiles() {
   wrap.className = 'life-tiles count-' + activeGame.playOrder.length;
   wrap.innerHTML = activeGame.playOrder.map((p, i) => {
     const player = DATA.players.find(x => x.id === p.playerId);
+    const deck = DATA.decks.find(d => d.id === p.deckId);
     const cls = ['life-tile'];
     if (i === activeGame.seatIndex && !p.eliminated) cls.push('current');
     if (p.eliminated) cls.push('eliminated');
+    const bgImg = (deck && deck.coverImageUrl) ? `<img class="life-tile-bg" data-life-bg src="${deck.coverImageUrl}" alt="">` : '';
     return `<div class="${cls.join(' ')}" ${p.eliminated ? '' : `onclick="openLifeSheet('${p.playerId}')"`}>
-      <div class="life-tile-name">${escapeHtml(player ? player.name : '—')}</div>
-      <div class="life-tile-num">${p.life}</div>
+      ${bgImg}
+      <div class="life-tile-scrim"></div>
+      <div class="life-tile-content">
+        <div class="life-tile-name">${escapeHtml(player ? player.name : '—')}</div>
+        <div class="life-tile-num">${p.life}</div>
+      </div>
     </div>`;
   }).join('');
+
+  // Once each background image has actually loaded, sample its average
+  // brightness and flip the life number to whichever color stays readable
+  // against it — falls back to a safe light-on-dark-scrim look if the pixel
+  // read is blocked (e.g. a cross-origin image without CORS headers).
+  wrap.querySelectorAll('img[data-life-bg]').forEach(img => {
+    img.crossOrigin = 'anonymous';
+    const run = () => applyLifeTileContrast(img);
+    if (img.complete && img.naturalWidth) run();
+    else img.addEventListener('load', run, { once: true });
+  });
+}
+function applyLifeTileContrast(img) {
+  const tile = img.closest('.life-tile');
+  const numEl = tile ? tile.querySelector('.life-tile-num') : null;
+  if (!numEl) return;
+  try {
+    const w = 16, h = 16;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let total = 0, count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      total += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      count++;
+    }
+    const brightness = total / count / 255;
+    numEl.classList.toggle('on-light-bg', brightness > 0.55);
+    numEl.classList.toggle('on-dark-bg', brightness <= 0.55);
+  } catch (e) {
+    numEl.classList.add('on-dark-bg');
+  }
 }
 function openLifeSheet(playerId) {
   if (!activeGame) return;
@@ -2904,6 +2968,7 @@ function openLifeSheet(playerId) {
   const player = DATA.players.find(x => x.id === playerId);
   document.getElementById('lifeSheetName').textContent = player ? player.name : '—';
   document.getElementById('lifeSheetNumber').textContent = p.life;
+  renderCommanderDamageRows();
   document.getElementById('lifeSheetModal').classList.add('active');
 }
 function closeLifeSheet() {
@@ -2918,15 +2983,79 @@ function adjustSheetLife(delta) {
   p.life += delta;
   buzz(Math.abs(delta) >= 5 ? HAPTIC_LIFE_BIG : HAPTIC_LIFE_SMALL);
   document.getElementById('lifeSheetNumber').textContent = p.life;
-  if (p.life <= 0) {
-    const player = DATA.players.find(x => x.id === lifeSheetPlayerId);
-    if (confirm(`${player ? player.name : 'This player'} is at ${p.life} life. Eliminate them?`)) {
-      const pid = lifeSheetPlayerId;
+  checkLifeSheetElimination();
+}
+// Shared "are they actually out?" prompt used by both plain life loss and
+// commander damage, since either can bring a player to 0 or below.
+function checkLifeSheetElimination() {
+  if (!activeGame || !lifeSheetPlayerId) return;
+  const p = activeGame.playOrder.find(x => x.playerId === lifeSheetPlayerId);
+  if (!p || p.life > 0) return;
+  const player = DATA.players.find(x => x.id === lifeSheetPlayerId);
+  if (confirm(`${player ? player.name : 'This player'} is at ${p.life} life. Eliminate them?`)) {
+    const pid = lifeSheetPlayerId;
+    closeLifeSheet();
+    quickEliminate(pid);
+  }
+}
+
+// ---------- COMMANDER DAMAGE — tracked per opponent, always mirrored into
+// the same player's regular life total (commander damage IS life loss, just
+// tracked separately per source so a single commander's 21+ can be flagged). ----------
+function renderCommanderDamageRows() {
+  if (!activeGame || !lifeSheetPlayerId) return;
+  const wrap = document.getElementById('cmdDmgRows');
+  if (!wrap) return;
+  const targetId = lifeSheetPlayerId;
+  const taken = (activeGame.commanderDamage && activeGame.commanderDamage[targetId]) || {};
+  const opponents = activeGame.playOrder.filter(p => p.playerId !== targetId);
+  if (!opponents.length) { wrap.innerHTML = '<div class="empty" style="padding:4px 0;">No opponents.</div>'; return; }
+  wrap.innerHTML = opponents.map(p => {
+    const player = DATA.players.find(x => x.id === p.playerId);
+    const total = taken[p.playerId] || 0;
+    return `<div class="cmd-dmg-row">
+      <div class="cmd-dmg-name">${escapeHtml(player ? player.name : '—')}${p.eliminated ? ' <span class="cmd-dmg-out">(out)</span>' : ''}</div>
+      <div class="cmd-dmg-total${total >= 21 ? ' lethal' : ''}">${total}</div>
+      <button class="cmd-dmg-btn minus" onclick="addCommanderDamage('${p.playerId}', -1)" ${total <= 0 ? 'disabled' : ''}>−</button>
+      <input type="number" class="cmd-dmg-input" id="cmdDmgInput_${p.playerId}" placeholder="dmg" min="1" ${p.eliminated ? 'disabled' : ''}>
+      <button class="cmd-dmg-btn plus" onclick="addCommanderDamageFromInput('${p.playerId}')" ${p.eliminated ? 'disabled' : ''}>+</button>
+    </div>`;
+  }).join('');
+}
+function addCommanderDamageFromInput(sourcePlayerId) {
+  const input = document.getElementById('cmdDmgInput_' + sourcePlayerId);
+  const val = input ? Number(input.value) : 0;
+  if (!val || val <= 0) return;
+  addCommanderDamage(sourcePlayerId, val);
+  if (input) input.value = '';
+}
+function addCommanderDamage(sourcePlayerId, amount) {
+  if (!activeGame || !lifeSheetPlayerId || sourcePlayerId === lifeSheetPlayerId) return;
+  const targetId = lifeSheetPlayerId;
+  if (!activeGame.commanderDamage[targetId]) activeGame.commanderDamage[targetId] = {};
+  const current = activeGame.commanderDamage[targetId][sourcePlayerId] || 0;
+  const next = Math.max(0, current + amount);
+  const appliedDelta = next - current;
+  if (appliedDelta === 0) return;
+  activeGame.commanderDamage[targetId][sourcePlayerId] = next;
+  const p = activeGame.playOrder.find(x => x.playerId === targetId);
+  if (p) {
+    p.life -= appliedDelta;
+    document.getElementById('lifeSheetNumber').textContent = p.life;
+  }
+  buzz(Math.abs(appliedDelta) >= 5 ? HAPTIC_LIFE_BIG : HAPTIC_LIFE_SMALL);
+  renderCommanderDamageRows();
+
+  if (next >= 21) {
+    const source = DATA.players.find(x => x.id === sourcePlayerId);
+    const target = DATA.players.find(x => x.id === targetId);
+    if (confirm(`${target ? target.name : 'This player'} has taken ${next} commander damage from ${source ? source.name : 'that opponent'} — that\u2019s lethal on its own. Eliminate them?`)) {
       closeLifeSheet();
-      quickEliminate(pid);
+      quickEliminate(targetId);
       return;
     }
   }
+  checkLifeSheetElimination();
 }
 function quickEliminate(playerId) {
   if (!activeGame) return;
