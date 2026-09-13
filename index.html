@@ -76,6 +76,43 @@
     100% { transform: translateX(350%); }
   }
 
+  .tour-overlay { position: fixed; inset: 0; z-index: 300; }
+  .tour-spotlight {
+    position: fixed; border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(6,6,7,0.78);
+    border: 2px solid var(--gold);
+    pointer-events: none;
+    transition: top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease;
+  }
+  .tour-card {
+    position: fixed; background: var(--panel); border: 1px solid var(--gold-dim);
+    padding: 18px; box-shadow: 0 10px 34px rgba(0,0,0,0.55);
+    transition: top 0.3s ease, left 0.3s ease;
+    max-width: 320px; width: calc(100vw - 32px);
+  }
+  .tour-card-title { font-weight: 800; font-size: 1.02rem; margin-bottom: 8px; color: var(--paper); }
+  .tour-card-body { font-size: 0.85rem; line-height: 1.55; color: var(--paper-dim); margin-bottom: 14px; }
+  .tour-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .tour-dots { display: flex; gap: 5px; }
+  .tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); display: inline-block; }
+  .tour-dots span.active { background: var(--gold); }
+  .tour-card-buttons { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .tour-btn-skip {
+    background: none; border: none; color: var(--paper-dim2); font-family: ui-monospace, monospace;
+    font-size: 0.68rem; cursor: pointer; padding: 6px 4px;
+  }
+  .tour-btn-skip:hover { color: var(--paper); }
+  .tour-btn-back {
+    background: none; border: 1px solid var(--line); color: var(--paper-dim); font-family: ui-monospace, monospace;
+    font-weight: 700; font-size: 0.68rem; padding: 7px 12px; cursor: pointer;
+  }
+  .tour-btn-back:hover { border-color: var(--gold-dim); color: var(--paper); }
+  .tour-btn-next {
+    background: var(--gold); border: 1px solid var(--gold); color: var(--ink); font-family: ui-monospace, monospace;
+    font-weight: 700; font-size: 0.68rem; padding: 7px 14px; cursor: pointer;
+  }
+  .tour-btn-next:hover { filter: brightness(1.08); }
+
   .app { max-width: 920px; margin: 0 auto; padding: 32px 18px 70px; }
 
   header { position: relative; padding-bottom: 20px; margin-bottom: 24px; }
@@ -593,6 +630,21 @@
     <div class="boot-bar"><div class="boot-bar-fill"></div></div>
   </div>
 </div>
+<div id="tourOverlay" class="tour-overlay" style="display:none;">
+  <div id="tourSpotlight" class="tour-spotlight"></div>
+  <div id="tourCard" class="tour-card">
+    <div class="tour-card-title" id="tourTitle"></div>
+    <div class="tour-card-body" id="tourBody"></div>
+    <div class="tour-card-footer">
+      <div class="tour-dots" id="tourDots"></div>
+      <div class="tour-card-buttons">
+        <button class="tour-btn-skip" onclick="skipTour()">Skip</button>
+        <button class="tour-btn-back" id="tourBackBtn" onclick="tourBack()">Back</button>
+        <button class="tour-btn-next" id="tourNextBtn" onclick="tourNext()">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="app">
   <header>
     <div class="header-row">
@@ -794,7 +846,7 @@
     </div>
 
     <div id="reg-players">
-      <div class="panel">
+      <div class="panel" id="regPlayerPanel">
         <h2>Register a player</h2>
         <div class="row"><div><label>Name</label><input id="playerName" placeholder="e.g. Sterling"></div></div>
         <button class="btn" onclick="addPlayer()">Add player</button>
@@ -807,7 +859,7 @@
     </div>
 
     <div id="reg-decks" style="display:none;">
-      <div class="panel">
+      <div class="panel" id="regDeckPanel">
         <h2>Register a deck</h2>
         <div class="row">
           <div><label>Deck name</label><input id="deckName" placeholder="e.g. Garth One-Eye"></div>
@@ -1070,6 +1122,9 @@
       <button class="btn small" onclick="saveBackendUrl()">Save &amp; connect</button>
       <div id="connStatus" class="conn-status conn-unconfigured">○ Backend not set up</div>
     </div>
+
+    <label style="margin-top:16px;">Help</label>
+    <button class="btn ghost small" onclick="closeSettingsModal(); startTour();">↻ Replay tutorial</button>
   </div>
 </div>
 
@@ -1079,7 +1134,7 @@ let DATA = { players: [], decks: [], games: [] };
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
 const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx-g0NBb4uNRMd4duH4KDcToeSZkzau0dbxJPQhuByDaVK16F3rnFaynlmNFQGvhYDcBw/exec';
 
-let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
+let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL, tutorialSeen: false };
 let participantRowCount = 0;
 let activeDeckId = null;
 let activeGameId = null;
@@ -1137,10 +1192,120 @@ async function loadData() {
     const overlay = document.getElementById('bootOverlay');
     if (overlay) {
       overlay.classList.add('boot-hide');
-      setTimeout(() => { overlay.style.display = 'none'; }, 450);
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        if (!SETTINGS.tutorialSeen) startTour();
+      }, 450);
     }
   }, Math.max(0, minShowMs - elapsed));
 }
+
+// ---------- TOUR ----------
+// Each step optionally switches to a nav view (and Registration sub-tab)
+// before spotlighting a real element on screen — the tour walks the actual
+// UI rather than a static slideshow.
+const TOUR_STEPS = [
+  { title: 'Welcome to StackRank', body: 'A quick tour of how everything fits together — takes less than a minute. Skip anytime, and you can replay this later from Settings.' },
+  { nav: 'registration', sub: 'players', target: '#regPlayerPanel', title: 'Start here: register everyone', body: 'Add every player in your group. This only needs doing once per person, ever.' },
+  { nav: 'registration', sub: 'decks', target: '#regDeckPanel', title: 'Register decks', body: 'Each deck gets an owner, a starting bracket guess, and a color identity. You can add a decklist and cover art later from the deck\u2019s own page.' },
+  { nav: 'matchmaking', target: 'nav button[data-view="matchmaking"]', title: 'Splitting into pods', body: 'When everyone\u2019s arrived, list who\u2019s playing here and it\u2019ll split the group into balanced pods automatically \u2014 favoring 4-player games where it can.' },
+  { nav: 'matchmaking', target: '#view-matchmaking .btn-start', title: 'Suggest pods', body: 'Tap this once everyone\u2019s listed. Each suggested pod gets a \u201cStart this pod\u201d button that jumps straight into a live game, pre-filled.' },
+  { nav: 'play', target: 'nav button[data-view="play"]', title: 'Running a live game', body: 'This is the heart of the app \u2014 track turns, phases, eliminations, and life in real time while you play.' },
+  { nav: 'play', target: '#gameSetupPanel .btn-start', title: 'Start a game', body: 'Set seats, decks, and starting life, then start. When someone wins, tap \u201cGame Won\u201d and it saves straight to the leaderboard \u2014 no extra steps.' },
+  { nav: 'log', target: 'nav button[data-view="log"]', title: 'Log Game', body: 'Prefer to enter results after the fact, or forgot to use Play? Log any game manually here.' },
+  { nav: 'mydecks', target: 'nav button[data-view="mydecks"]', title: 'My Decks', body: 'See your own decks and their stats at a glance.' },
+  { nav: 'board', target: 'nav button[data-view="board"]', title: 'Leaderboard', body: 'Everyone\u2019s ranked by Power \u2014 a blend of win rate, eliminations, and speed. Tap a deck for its full stats, decklist, and cover art.' },
+  { target: '.gear-btn', title: 'Settings', body: 'Themes, your backend connection, and you can replay this tour anytime from here.' },
+  { title: 'You\u2019re all set', body: 'Register your group, then jump into Play or Matchmaking whenever you sit down for a game.' }
+];
+let tourIndex = 0;
+
+function startTour() {
+  tourIndex = 0;
+  document.getElementById('tourOverlay').style.display = 'block';
+  showTourStep(0);
+}
+function skipTour() { endTour(); }
+function tourNext() {
+  if (tourIndex >= TOUR_STEPS.length - 1) { endTour(); return; }
+  tourIndex++;
+  showTourStep(tourIndex);
+}
+function tourBack() {
+  if (tourIndex <= 0) return;
+  tourIndex--;
+  showTourStep(tourIndex);
+}
+function endTour() {
+  document.getElementById('tourOverlay').style.display = 'none';
+  SETTINGS.tutorialSeen = true;
+  saveSettings();
+}
+function showTourStep(i) {
+  const step = TOUR_STEPS[i];
+  if (step.nav) {
+    const navBtn = document.querySelector(`nav button[data-view="${step.nav}"]`);
+    if (navBtn) navBtn.click();
+  }
+  if (step.sub) setRegSub(step.sub);
+
+  document.getElementById('tourTitle').textContent = step.title;
+  document.getElementById('tourBody').textContent = step.body;
+  document.getElementById('tourBackBtn').style.visibility = i === 0 ? 'hidden' : 'visible';
+  document.getElementById('tourNextBtn').textContent = i === TOUR_STEPS.length - 1 ? 'Done' : 'Next';
+  document.getElementById('tourDots').innerHTML = TOUR_STEPS.map((s, idx) =>
+    `<span class="${idx === i ? 'active' : ''}"></span>`).join('');
+
+  // Give the view switch a moment to render before measuring the target.
+  setTimeout(() => {
+    const target = step.target ? document.querySelector(step.target) : null;
+    if (target) target.scrollIntoView({ block: 'center', behavior: 'auto' });
+    setTimeout(() => positionTour(target), 20);
+  }, 30);
+}
+function positionTour(target) {
+  const spot = document.getElementById('tourSpotlight');
+  const card = document.getElementById('tourCard');
+  const vw = window.innerWidth, vh = window.innerHeight;
+
+  if (!target) {
+    // No real element for this step — collapse the spotlight to nothing so
+    // the whole screen just dims, and center the card.
+    spot.style.top = '50%'; spot.style.left = '50%'; spot.style.width = '0px'; spot.style.height = '0px';
+    card.style.width = Math.min(340, vw - 32) + 'px';
+    card.style.top = '50%'; card.style.left = '50%';
+    card.style.transform = 'translate(-50%, -50%)';
+    return;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const pad = 8;
+  spot.style.top = (rect.top - pad) + 'px';
+  spot.style.left = (rect.left - pad) + 'px';
+  spot.style.width = (rect.width + pad * 2) + 'px';
+  spot.style.height = (rect.height + pad * 2) + 'px';
+
+  card.style.transform = 'none';
+  const cardWidth = Math.min(320, vw - 32);
+  card.style.width = cardWidth + 'px';
+  const spaceBelow = vh - rect.bottom, spaceAbove = rect.top;
+  const cardHeight = card.offsetHeight || 160;
+  let top = (spaceBelow > cardHeight + 24 || spaceBelow > spaceAbove)
+    ? rect.bottom + pad + 12
+    : rect.top - pad - 12 - cardHeight;
+  top = Math.max(12, Math.min(top, vh - cardHeight - 12));
+  let left = rect.left + rect.width / 2 - cardWidth / 2;
+  left = Math.max(12, Math.min(left, vw - cardWidth - 12));
+  card.style.top = top + 'px';
+  card.style.left = left + 'px';
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('tourOverlay').style.display === 'block') {
+    const step = TOUR_STEPS[tourIndex];
+    positionTour(step && step.target ? document.querySelector(step.target) : null);
+  }
+});
+
 
 // ---------- BACKEND API ----------
 function setConnectionState(state) {
