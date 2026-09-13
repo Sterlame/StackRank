@@ -169,7 +169,11 @@
   .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .badge { display: inline-block; font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.62rem; letter-spacing: 0.02em; padding: 2px 7px; border: 1px solid var(--line); color: var(--paper-dim2); }
   .badge.win { color: var(--sage); border-color: var(--sage); }
-  .notice { font-family: ui-monospace, monospace; font-weight: 600; font-size: 0.72rem; color: var(--gold); margin-top: 6px; }
+  .notice:not(:empty) {
+    font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.72rem; color: var(--gold);
+    margin-top: 8px; padding: 8px 10px; border: 1px solid var(--gold-dim); background: rgba(194,155,98,0.06);
+  }
+  .notice:empty { margin: 0; padding: 0; border: none; }
   .status-line { font-family: ui-monospace, monospace; font-weight: 500; font-size: 0.7rem; color: var(--paper-dim2); margin-top: 10px; }
 
   .color-check { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; font-size: 0.85rem; font-weight: 500; color: var(--paper); cursor: pointer; }
@@ -262,6 +266,12 @@
   .conn-status.conn-connecting { color: var(--gold); }
   .conn-status.conn-connected { color: var(--sage); }
   .conn-status.conn-error { color: var(--danger); }
+  .conn-banner {
+    text-align: center; font-family: ui-monospace, monospace; font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 0.02em; padding: 7px 10px; margin-bottom: 14px; border: 1px solid;
+  }
+  .conn-banner-connecting { color: var(--gold); border-color: var(--gold-dim); background: rgba(194,155,98,0.06); }
+  .conn-banner-error { color: var(--danger); border-color: var(--danger); }
 
   .panel.compact { padding: 12px 16px; margin-bottom: 14px; }
   .turn-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -310,6 +320,21 @@
   .phase-pip.done { color: var(--sage); border-color: var(--line-soft); }
   .phase-group-gap { flex: none; width: 10px; }
   .setup-hint { color: var(--paper-dim); font-size: 0.82rem; line-height: 1.5; margin: -6px 0 16px; }
+
+  .pod-card { margin-bottom: 16px; }
+  .pod-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .pod-card-title { font-weight: 800; font-size: 1rem; }
+  .pod-avg { font-family: ui-monospace, monospace; font-size: 0.68rem; color: var(--paper-dim2); }
+  .pod-member-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line-soft); gap: 10px; }
+  .pod-member-row:last-child { border-bottom: none; }
+  .pod-member-name { font-weight: 700; }
+  .pod-member-deck { color: var(--paper-dim); font-size: 0.82rem; }
+  .pod-recommend-tag {
+    font-family: ui-monospace, monospace; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em;
+    color: var(--gold); border: 1px solid var(--gold-dim); padding: 1px 6px; margin-left: 6px;
+  }
+  .pod-power { font-family: ui-monospace, monospace; font-weight: 700; color: var(--sage); flex: none; }
+  .pod-uneven-note { color: var(--paper-dim2); font-size: 0.75rem; font-style: italic; margin-top: 4px; }
   .btn-start { font-size: 0.85rem; padding: 12px 22px; }
 
   .game-roster { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -519,8 +544,11 @@
     </div>
   </header>
 
+  <div id="connBanner" class="conn-banner" style="display:none;"></div>
+
   <nav>
     <button data-view="play">Play</button>
+    <button data-view="matchmaking">Matchmaking</button>
     <button data-view="log" class="active">Log Game</button>
     <button data-view="mydecks">My Decks</button>
     <button data-view="board">Leaderboard</button>
@@ -597,6 +625,19 @@
       <button class="pab-btn pab-next" onclick="nextPhase()" id="nextPhaseBtn">Next →</button>
     </div>
   </div>
+
+  <!-- MATCHMAKING -->
+  <section class="view" id="view-matchmaking">
+    <div class="panel">
+      <h2>Who's here?</h2>
+      <p class="setup-hint">Add everyone present. Pick a specific deck, or leave it as "recommend for me" and it'll suggest the deck from their collection that best balances the pods.</p>
+      <div id="mmRows"></div>
+      <button class="btn ghost small" onclick="addMatchmakingRow()">+ Add player</button>
+      <div style="margin-top:14px;"><button class="btn btn-start" onclick="runMatchmaking()">🔀 Suggest pods</button></div>
+      <div class="notice" id="mmNotice"></div>
+    </div>
+    <div id="mmResults"></div>
+  </section>
 
   <!-- LOG GAME -->
   <section class="view active" id="view-log">
@@ -1001,8 +1042,6 @@ async function loadData() {
 // ---------- BACKEND API ----------
 function setConnectionState(state) {
   connectionState = state;
-  const el = document.getElementById('connStatus');
-  if (!el) return;
   const map = {
     unconfigured: ['○', 'Backend not set up — open Settings'],
     connecting: ['⟳', 'Connecting…'],
@@ -1010,8 +1049,23 @@ function setConnectionState(state) {
     error: ['✕', 'Could not reach backend']
   };
   const [dot, label] = map[state];
-  el.textContent = `${dot} ${label}`;
-  el.className = 'conn-status conn-' + state;
+
+  const el = document.getElementById('connStatus');
+  if (el) {
+    el.textContent = `${dot} ${label}`;
+    el.className = 'conn-status conn-' + state;
+  }
+
+  const banner = document.getElementById('connBanner');
+  if (banner) {
+    if (state === 'connected') {
+      banner.style.display = 'none';
+    } else {
+      banner.textContent = state === 'error' ? '✕ Could not reach backend — retrying…' : `${dot} ${label}`;
+      banner.className = 'conn-banner conn-banner-' + (state === 'error' ? 'error' : 'connecting');
+      banner.style.display = 'block';
+    }
+  }
 }
 
 async function apiGet() {
@@ -1090,6 +1144,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     if (btn.dataset.view === 'mydecks') renderMyDecksPlayerSelect();
     if (btn.dataset.view === 'play') { refreshGsSelects(); renderPhaseTracker(); }
     if (btn.dataset.view === 'log') renderPendingPlayNotice();
+    if (btn.dataset.view === 'matchmaking') refreshMmSelects();
     updatePlayActionBar();
   });
 });
@@ -1464,6 +1519,12 @@ function addKillRow(rowId) {
 }
 async function submitGame() {
   const notice = document.getElementById('logNotice');
+  if (connectionState !== 'connected') {
+    notice.textContent = connectionState === 'connecting'
+      ? 'Still connecting to the backend — wait a moment and try again.'
+      : 'Not connected to the backend — check Settings.';
+    return;
+  }
   const date = document.getElementById('gameDate').value || todayStr();
   const endTurn = Number(document.getElementById('gameEndTurn').value);
   const rows = document.querySelectorAll('#participantsWrap .participant-card');
@@ -1523,7 +1584,11 @@ function setSort(key) {
   else { sortState.key = key; sortState.dir = (key === 'name' || key === 'pilot') ? 'asc' : 'desc'; }
   renderLeaderboard();
 }
-function computeLeaderboardRows() {
+// Shared Power Index calculation across ALL decks (including ones with zero
+// games logged, which fall back to a bracket-based estimate so they can still
+// participate in matchmaking). computeLeaderboardRows() and the matchmaking
+// tool both read from this so the numbers always agree.
+function computeAllDeckPowers() {
   const stats = {};
   DATA.decks.forEach(d => { stats[d.id] = { deck: d, gp: 0, wins: 0, winTurns: [], elims: 0, threats: 0, opponentsBeaten: 0, opponentsFaced: 0 }; });
   DATA.games.forEach(g => {
@@ -1537,7 +1602,7 @@ function computeLeaderboardRows() {
       s.elims += pt.eliminations.length;
     });
   });
-  let rows = Object.values(stats).filter(s => s.gp > 0).map(s => {
+  const all = Object.values(stats).map(s => {
     const pilot = DATA.players.find(p => p.id === s.deck.playerId);
     return { deck: s.deck, pilotName: pilot ? pilot.name : '', bracket: s.deck.bracket, gp: s.gp,
       winpct: s.gp ? (s.wins / s.gp) : 0,
@@ -1552,20 +1617,32 @@ function computeLeaderboardRows() {
   // faced — so a big-pod win counts for more without penalizing smaller games.
   // Elim and speed are scaled relative to this pod's own field (fastest/most-
   // eliminating deck sets the ceiling) rather than an arbitrary fixed number.
-  const maxElimRate = Math.max(0, ...rows.map(r => r.elimRate));
-  const turnedRows = rows.filter(r => r.avgTurn !== null);
+  const withGames = all.filter(r => r.gp > 0);
+  const maxElimRate = Math.max(0, ...withGames.map(r => r.elimRate));
+  const turnedRows = withGames.filter(r => r.avgTurn !== null);
   const minTurn = turnedRows.length ? Math.min(...turnedRows.map(r => r.avgTurn)) : null;
   const maxTurn = turnedRows.length ? Math.max(...turnedRows.map(r => r.avgTurn)) : null;
-  rows.forEach(r => {
-    const winScore = r.weightedWinRate * 100;
-    const elimScore = maxElimRate > 0 ? (r.elimRate / maxElimRate) * 100 : 0;
-    let speedScore = 0;
-    if (r.avgTurn !== null) {
-      speedScore = (maxTurn === minTurn) ? 100 : ((maxTurn - r.avgTurn) / (maxTurn - minTurn)) * 100;
+  all.forEach(r => {
+    if (r.gp > 0) {
+      const winScore = r.weightedWinRate * 100;
+      const elimScore = maxElimRate > 0 ? (r.elimRate / maxElimRate) * 100 : 0;
+      let speedScore = 0;
+      if (r.avgTurn !== null) {
+        speedScore = (maxTurn === minTurn) ? 100 : ((maxTurn - r.avgTurn) / (maxTurn - minTurn)) * 100;
+      }
+      r.power = Math.round(0.4 * winScore + 0.35 * elimScore + 0.25 * speedScore);
+      r.powerIsEstimate = false;
+    } else {
+      // No games yet — estimate from self-reported bracket so it can still be used.
+      r.power = Math.round((r.bracket / 5) * 100);
+      r.powerIsEstimate = true;
     }
-    r.power = Math.round(0.4 * winScore + 0.35 * elimScore + 0.25 * speedScore);
   });
+  return all;
+}
 
+function computeLeaderboardRows() {
+  const rows = computeAllDeckPowers().filter(r => r.gp > 0);
   return rows.filter(r => {
     if (boardBracketFilter !== 'all' && Number(r.bracket) !== Number(boardBracketFilter)) return false;
     if (boardColorFilter.length && !boardColorFilter.every(c => (r.deck.colors || []).includes(c))) return false;
@@ -1585,6 +1662,174 @@ function clearBoardFilters() {
   document.querySelectorAll('.color-filter-pip').forEach(b => b.classList.remove('active'));
   renderLeaderboard();
 }
+
+// ---------- MATCHMAKING ----------
+let mmRowCount = 0;
+let lastMmPods = null;
+
+function addMatchmakingRow() {
+  mmRowCount++;
+  const id = 'mmrow_' + mmRowCount;
+  const wrap = document.getElementById('mmRows');
+  const div = document.createElement('div');
+  div.className = 'participant-card';
+  div.id = id;
+  div.innerHTML = `
+    <div class="card-head">
+      <span class="badge mono">Player</span>
+      <button class="remove-link" onclick="document.getElementById('${id}').remove()">remove</button>
+    </div>
+    <div class="row">
+      <div><label>Player</label><select class="mm-player-select" onchange="refreshMmDeckOptions(this.closest('.participant-card'))"></select></div>
+      <div><label>Deck</label><select class="mm-deck-select"></select></div>
+    </div>
+  `;
+  wrap.appendChild(div);
+  refreshMmSelects();
+}
+function refreshMmSelects() {
+  const playerOpts = DATA.players.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  document.querySelectorAll('.mm-player-select').forEach(sel => { const c = sel.value; sel.innerHTML = playerOpts; if (c) sel.value = c; });
+  document.querySelectorAll('#mmRows .participant-card').forEach(row => refreshMmDeckOptions(row));
+}
+function refreshMmDeckOptions(row) {
+  const playerId = row.querySelector('.mm-player-select').value;
+  const deckSel = row.querySelector('.mm-deck-select');
+  const current = deckSel.value;
+  const decks = DATA.decks.filter(d => d.playerId === playerId);
+  deckSel.innerHTML = '<option value="">— recommend for me —</option>' + decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+  if (current && decks.some(d => d.id === current)) deckSel.value = current;
+}
+
+// Pod sizes that sum to n, maximizing 4-player pods and avoiding pods smaller
+// than 3 unless there simply aren't enough players present for one.
+function computePodSizes(n) {
+  if (n <= 0) return [];
+  if (n < 3) return [n];
+  const k = Math.floor(n / 4), rem = n % 4;
+  if (rem === 0) return Array(k).fill(4);
+  if (rem === 3) { const s = Array(k).fill(4); s.push(3); return s; }
+  if (rem === 1) { const s = Array(k - 1).fill(4); s.push(5); return s; }
+  const s = Array(k - 1).fill(4); s.push(3, 3); return s; // rem === 2
+}
+
+function runMatchmaking() {
+  const notice = document.getElementById('mmNotice');
+  notice.textContent = '';
+  const rows = document.querySelectorAll('#mmRows .participant-card');
+  if (rows.length < 3) { notice.textContent = 'Add at least 3 players present to suggest pods.'; return; }
+
+  const powers = computeAllDeckPowers();
+  const powerByDeckId = {};
+  powers.forEach(r => { powerByDeckId[r.deck.id] = r; });
+
+  const entries = [];
+  const seenPlayers = new Set();
+  for (const row of rows) {
+    const playerId = row.querySelector('.mm-player-select').value;
+    const deckId = row.querySelector('.mm-deck-select').value;
+    const player = DATA.players.find(p => p.id === playerId);
+    if (!player) { notice.textContent = 'Every row needs a player selected.'; return; }
+    if (seenPlayers.has(playerId)) { notice.textContent = `${player.name} is listed more than once.`; return; }
+    seenPlayers.add(playerId);
+    const ownDecks = DATA.decks.filter(d => d.playerId === playerId);
+    if (!ownDecks.length) { notice.textContent = `${player.name} has no registered decks.`; return; }
+    entries.push({ playerId, player, deckId: deckId || null, ownDecks, recommended: !deckId });
+  }
+
+  // Reference power for initial seeding: chosen deck's power, or the average
+  // across their decks if undecided (just a starting point for grouping).
+  entries.forEach(e => {
+    if (e.deckId) {
+      e.refPower = powerByDeckId[e.deckId].power;
+    } else {
+      const avg = e.ownDecks.reduce((sum, d) => sum + (powerByDeckId[d.id] ? powerByDeckId[d.id].power : 0), 0) / e.ownDecks.length;
+      e.refPower = avg;
+    }
+  });
+
+  entries.sort((a, b) => b.refPower - a.refPower);
+  const sizes = computePodSizes(entries.length);
+
+  const pods = [];
+  let idx = 0;
+  sizes.forEach(size => {
+    pods.push(entries.slice(idx, idx + size));
+    idx += size;
+  });
+
+  // For anyone left undecided, pick the deck from their collection whose
+  // power is closest to their pod's average — the best fit, not necessarily
+  // their strongest deck.
+  pods.forEach(pod => {
+    const decided = pod.filter(e => e.deckId);
+    const podAvg = decided.length
+      ? decided.reduce((sum, e) => sum + powerByDeckId[e.deckId].power, 0) / decided.length
+      : pod.reduce((sum, e) => sum + e.refPower, 0) / pod.length;
+    pod.forEach(e => {
+      if (!e.deckId) {
+        let best = e.ownDecks[0], bestDiff = Infinity;
+        e.ownDecks.forEach(d => {
+          const p = powerByDeckId[d.id] ? powerByDeckId[d.id].power : 0;
+          const diff = Math.abs(p - podAvg);
+          if (diff < bestDiff) { bestDiff = diff; best = d; }
+        });
+        e.deckId = best.id;
+      }
+    });
+  });
+
+  lastMmPods = pods.map(pod => pod.map(e => ({
+    playerId: e.playerId, deckId: e.deckId, recommended: e.recommended
+  })));
+  renderMatchmakingResults(pods, powerByDeckId);
+}
+
+function renderMatchmakingResults(pods, powerByDeckId) {
+  const wrap = document.getElementById('mmResults');
+  const fourCount = pods.filter(p => p.length === 4).length;
+  wrap.innerHTML = pods.map((pod, i) => {
+    const decks = pod.map(e => powerByDeckId[e.deckId]);
+    const avgPower = Math.round(decks.reduce((sum, d) => sum + d.power, 0) / decks.length);
+    const members = pod.map(e => {
+      const deckRow = powerByDeckId[e.deckId];
+      const estTag = deckRow.powerIsEstimate ? ' (est.)' : '';
+      return `<div class="pod-member-row">
+        <div>
+          <div class="pod-member-name">${escapeHtml(e.player.name)}${e.recommended ? '<span class="pod-recommend-tag">recommended</span>' : ''}</div>
+          <div class="pod-member-deck">${escapeHtml(deckRow.deck.name)} ${pipsFor(deckRow.deck.colors)}</div>
+        </div>
+        <div class="pod-power">${deckRow.power}${estTag}</div>
+      </div>`;
+    }).join('');
+    return `<div class="panel pod-card">
+      <div class="pod-card-head">
+        <div class="pod-card-title">Pod ${i + 1} <span class="badge mono">${pod.length}p</span></div>
+        <div class="pod-avg">avg power ${avgPower}</div>
+      </div>
+      ${members}
+      <button class="btn small" style="margin-top:12px;" onclick="startPodGame(${i})">▶ Start this pod</button>
+    </div>`;
+  }).join('') + (fourCount < pods.length ? '<div class="pod-uneven-note">Couldn\'t make every pod 4 players with this headcount — split as evenly as possible instead.</div>' : '');
+}
+
+function startPodGame(podIndex) {
+  if (!lastMmPods || !lastMmPods[podIndex]) return;
+  const pod = lastMmPods[podIndex];
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === 'play'));
+  document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-play'));
+  document.getElementById('gameSetupRows').innerHTML = '';
+  gsRowCount = 0;
+  pod.forEach(e => {
+    addGameSetupRow();
+    const row = document.getElementById('gsrow_' + gsRowCount);
+    row.querySelector('.gs-player-select').value = e.playerId;
+    refreshGsDeckOptions(row);
+    row.querySelector('.gs-deck-select').value = e.deckId;
+  });
+  updatePlayActionBar();
+}
+
 function renderLeaderboard() {
   const rows = computeLeaderboardRows();
   const key = sortState.key, dir = sortState.dir;
