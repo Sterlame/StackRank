@@ -396,8 +396,16 @@
     margin: 4px -24px 16px -24px; height: 190px; overflow: hidden; background-color: var(--panel-raised);
   }
   .deck-modal-header img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 30%; }
+  .deck-modal-actions-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .deck-close-inline { display: none; float: none; }
   @media (max-width: 640px) {
-    .deck-modal-header { height: 150px; margin: 4px -18px 16px -18px; }
+    .deck-modal-header { height: 210px; margin: 0 -18px 16px -18px; }
+    /* On mobile, drop the top-right close button (which was reserving a row
+       above the header image) in favor of one inline with "edit deck
+       details" — the image can then start right at the top of the modal.
+       Tapping outside the modal still closes it either way. */
+    #deckModal > .modal > .modal-close:not(.deck-close-inline) { display: none; }
+    .deck-close-inline { display: inline-block; }
   }
   .btn-decklist {
     display: block; width: 100%; text-align: center; background: none; border: 1px solid var(--line);
@@ -491,7 +499,7 @@
   /* Prominent whose-turn-is-it hero */
   .now-playing-hero {
     background: var(--panel); border: 1px solid var(--gold-dim); border-left: 5px solid var(--gold);
-    padding: 16px 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px;
     transition: padding 0.15s;
   }
   .np-turn-label {
@@ -499,12 +507,13 @@
     background: var(--gold); padding: 6px 10px; letter-spacing: 0.02em; flex: none;
   }
   .np-turn-label::before { content: "TURN "; }
-  .np-name { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
-  .np-deck { color: var(--paper-dim); font-size: 0.85rem; width: 100%; }
+  .np-names { flex: 1; min-width: 0; }
+  .np-name { font-size: 1.25rem; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np-deck { color: var(--paper-dim); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-t1a-btn {
     border: 1px solid var(--gold-dim); background: none; color: var(--paper-dim2);
     font-family: ui-monospace, monospace; font-weight: 800; font-size: 0.68rem; letter-spacing: 0.02em;
-    padding: 6px 12px; cursor: pointer; flex: none; margin-left: auto;
+    padding: 6px 12px; cursor: pointer; flex: none;
   }
   .np-t1a-btn.active { background: var(--gold); color: var(--ink); border-color: var(--gold); }
 
@@ -717,8 +726,10 @@
       <div id="activeGamePanel" style="display:none;">
         <div class="now-playing-hero" id="nowPlayingHero">
           <div class="np-turn-label"><span id="turnNumberDisplay">1</span></div>
-          <div class="np-name" id="nowPlayingName">—</div>
-          <div class="np-deck" id="nowPlayingDeck"></div>
+          <div class="np-names">
+            <div class="np-name" id="nowPlayingName">—</div>
+            <div class="np-deck" id="nowPlayingDeck"></div>
+          </div>
           <button type="button" class="np-t1a-btn" id="npT1aBtn" onclick="toggleCurrentT1a()" style="display:none;" title="Turn 1 Advantage">T1A</button>
         </div>
 
@@ -1060,8 +1071,9 @@
 
     <button type="button" class="btn-decklist" id="viewDecklistBtn" onclick="openDecklistModal()">📋 View deck list</button>
 
-    <div style="margin-bottom: 16px; margin-top: 10px;">
+    <div class="deck-modal-actions-row" style="margin-bottom: 16px; margin-top: 10px;">
       <button class="icon-link" onclick="toggleDeckEdit()" id="deckEditToggle">edit deck details</button>
+      <button class="modal-close deck-close-inline" onclick="closeDeckModal()">close ×</button>
       <div id="deckEditWrap" style="display:none; margin-top:12px;">
         <div class="row">
           <div><label>Deck name</label><input id="editDeckName"></div>
