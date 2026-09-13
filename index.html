@@ -393,9 +393,9 @@
   .pod-uneven-note { color: var(--paper-dim2); font-size: 0.75rem; font-style: italic; margin-top: 4px; }
 
   .deck-modal-header {
-    margin: 4px -24px 16px -24px; height: 190px;
-    background-size: cover; background-position: center 30%; background-color: var(--panel-raised);
+    margin: 4px -24px 16px -24px; height: 190px; overflow: hidden; background-color: var(--panel-raised);
   }
+  .deck-modal-header img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 30%; }
   @media (max-width: 640px) {
     .deck-modal-header { height: 150px; margin: 4px -18px 16px -18px; }
   }
@@ -413,12 +413,14 @@
 
   .art-results { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .art-thumb {
-    width: 76px; height: 54px; background-size: cover; background-position: center;
+    width: 76px; height: 54px; overflow: hidden;
     border: 2px solid var(--line); cursor: pointer; transition: border-color 0.15s;
   }
+  .art-thumb img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
   .art-thumb:hover { border-color: var(--gold-dim); }
   .art-thumb.selected { border-color: var(--gold); }
-  .art-preview-frame { height: 90px; background-size: cover; background-position: center 30%; border: 1px solid var(--line); margin-bottom: 8px; }
+  .art-preview-frame { height: 90px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 8px; }
+  .art-preview-frame img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 30%; }
 
   .decklist-body {
     white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.82rem; line-height: 1.65;
@@ -1028,7 +1030,7 @@
 <div class="modal-backdrop" id="deckModal">
   <div class="modal">
     <button class="modal-close" onclick="closeDeckModal()">close ×</button>
-    <div id="deckModalHeader" class="deck-modal-header" style="display:none;"></div>
+    <div id="deckModalHeader" class="deck-modal-header" style="display:none;"><img id="deckModalHeaderImg" alt=""></div>
     <h3 id="modalDeckName"></h3>
     <div class="history-note" id="modalDeckCommander" style="margin-bottom: 4px;"></div>
     <div class="modal-sub" id="modalDeckMeta"></div>
@@ -1076,7 +1078,7 @@
 
         <div id="deckArtPositionWrap" style="display:none; margin-bottom: 14px;">
           <label>Adjust crop</label>
-          <div class="art-preview-frame" id="artPreviewFrame"></div>
+          <div class="art-preview-frame" id="artPreviewFrame"><img id="artPreviewImg" alt=""></div>
           <input type="range" id="editDeckArtPositionY" min="0" max="100" value="30" oninput="updateArtPreviewPosition(this.value)">
         </div>
 
@@ -1566,14 +1568,16 @@ function openDeckModal(deckId) {
   document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket}`;
 
   const headerEl = document.getElementById('deckModalHeader');
+  const headerImg = document.getElementById('deckModalHeaderImg');
   const posY = (deck.coverImagePositionY != null) ? deck.coverImagePositionY : 30;
   if (deck.coverImageUrl) {
     headerEl.style.display = 'block';
-    headerEl.style.backgroundImage = `url('${deck.coverImageUrl}')`;
-    headerEl.style.backgroundPosition = `center ${posY}%`;
+    headerImg.onerror = () => { headerEl.style.display = 'none'; };
+    headerImg.src = deck.coverImageUrl;
+    headerImg.style.objectPosition = `center ${posY}%`;
   } else {
     headerEl.style.display = 'none';
-    headerEl.style.backgroundImage = '';
+    headerImg.removeAttribute('src');
   }
 
   const decklistBtn = document.getElementById('viewDecklistBtn');
@@ -1643,7 +1647,7 @@ async function searchDeckArt() {
     }).filter(c => c.imageUrl);
     if (!deckArtSearchResults.length) { resultsEl.innerHTML = '<div class="empty" style="padding:4px 0;">No art found for that card.</div>'; return; }
     resultsEl.innerHTML = deckArtSearchResults.slice(0, 12).map((c, i) =>
-      `<div class="art-thumb" onclick="selectDeckArt(${i})" style="background-image:url('${c.imageUrl}')" title="${escapeHtml(c.set)}"></div>`
+      `<div class="art-thumb" onclick="selectDeckArt(${i})" title="${escapeHtml(c.set)}"><img src="${c.imageUrl}" alt=""></div>`
     ).join('');
   } catch (e) {
     resultsEl.innerHTML = '<div class="empty" style="padding:4px 0;">Could not reach the card database — check your connection.</div>';
@@ -1660,15 +1664,15 @@ function selectDeckArt(i) {
 }
 function showArtPreview(url, positionY) {
   const wrap = document.getElementById('deckArtPositionWrap');
-  const frame = document.getElementById('artPreviewFrame');
+  const img = document.getElementById('artPreviewImg');
   wrap.style.display = 'block';
-  frame.style.backgroundImage = `url('${url}')`;
-  frame.style.backgroundPosition = `center ${positionY}%`;
+  img.src = url;
+  img.style.objectPosition = `center ${positionY}%`;
   document.getElementById('editDeckArtPositionY').value = positionY;
 }
 function updateArtPreviewPosition(val) {
   selectedCoverImagePositionY = Number(val);
-  document.getElementById('artPreviewFrame').style.backgroundPosition = `center ${val}%`;
+  document.getElementById('artPreviewImg').style.objectPosition = `center ${val}%`;
 }
 function toggleDeckEdit() {
   const wrap = document.getElementById('deckEditWrap');
