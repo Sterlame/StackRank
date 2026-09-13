@@ -53,6 +53,28 @@
     transition: background 0.2s, color 0.2s;
   }
   .mono { font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace; }
+  .boot-overlay {
+    position: fixed; inset: 0; z-index: 500; background: var(--ink);
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    transition: opacity 0.45s ease; opacity: 1;
+  }
+  .boot-overlay.boot-hide { opacity: 0; pointer-events: none; }
+  .boot-content { display: flex; flex-direction: column; align-items: center; }
+  .boot-logo { height: 64px; width: auto; margin-bottom: 16px; animation: boot-pulse 1.4s ease-in-out infinite; }
+  @keyframes boot-pulse {
+    0%, 100% { opacity: 0.65; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.03); }
+  }
+  .boot-title {
+    font-size: 1.25rem; font-weight: 800; letter-spacing: 0.03em; color: var(--paper); margin-bottom: 20px;
+  }
+  .boot-title span { color: var(--gold); }
+  .boot-bar { width: 140px; height: 3px; background: var(--line); overflow: hidden; border-radius: 2px; }
+  .boot-bar-fill { width: 40%; height: 100%; background: var(--gold); border-radius: 2px; animation: boot-sweep 1.1s ease-in-out infinite; }
+  @keyframes boot-sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
 
   .app { max-width: 920px; margin: 0 auto; padding: 32px 18px 70px; }
 
@@ -362,6 +384,7 @@
   }
   .art-thumb:hover { border-color: var(--gold-dim); }
   .art-thumb.selected { border-color: var(--gold); }
+  .art-preview-frame { height: 90px; background-size: cover; background-position: center 30%; border: 1px solid var(--line); margin-bottom: 8px; }
 
   .decklist-body {
     white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.82rem; line-height: 1.65;
@@ -566,6 +589,13 @@
 </style>
 </head>
 <body>
+<div id="bootOverlay" class="boot-overlay">
+  <div class="boot-content">
+    <img class="boot-logo" id="bootLogo" alt="">
+    <div class="boot-title">Stack<span>Rank</span></div>
+    <div class="boot-bar"><div class="boot-bar-fill"></div></div>
+  </div>
+</div>
 <div class="app">
   <header>
     <div class="header-row">
@@ -893,7 +923,7 @@
     </div>
     <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
       Win rate — and Power along with it — isn't calculated at all until a
-      deck has played more than 3 games. Below that it shows as
+      deck has played at least 2 games. Below that it shows as
       <strong>—</strong> rather than a number, since one lucky win in a
       tiny sample isn't real evidence yet.
     </div>
@@ -989,7 +1019,13 @@
         </div>
         <button type="button" class="btn ghost small" onclick="searchDeckArt()">🔍 Search art</button>
         <div id="deckArtResults" class="art-results"></div>
-        <div class="history-note" id="deckArtSelectedLabel" style="margin: 8px 0 14px;"></div>
+        <div class="history-note" id="deckArtSelectedLabel" style="margin: 8px 0;"></div>
+
+        <div id="deckArtPositionWrap" style="display:none; margin-bottom: 14px;">
+          <label>Adjust crop</label>
+          <div class="art-preview-frame" id="artPreviewFrame"></div>
+          <input type="range" id="editDeckArtPositionY" min="0" max="100" value="30" oninput="updateArtPreviewPosition(this.value)">
+        </div>
 
         <label>Decklist</label>
         <textarea id="editDeckDecklist" rows="8" placeholder="Paste your decklist here, one card per line…"></textarea>
@@ -1051,7 +1087,7 @@
 let DATA = { players: [], decks: [], games: [] };
 // The pod's shared backend — hardcoded so the app connects automatically.
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
-const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbwBmh3MUC08G_-bUgHqGFX3LHeeP2GlrHryYtJP3Q2Puya4f7Wqna4qitPhROHXitXAGg/exec';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxoLGGCitoNZvfnGtg35rhPnYf8YkVSIALVmZMP3U1HA7mKzQoR0Ow7qg_LeBL3cb1gzg/exec';
 
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
@@ -1095,10 +1131,25 @@ function loadSettings() {
 function saveSettings() { localSet('stackrank-settings', JSON.stringify(SETTINGS)); }
 
 async function loadData() {
+  const bootStart = Date.now();
+  const bootLogo = document.getElementById('bootLogo');
+  const headerLogo = document.querySelector('.logo');
+  if (bootLogo && headerLogo) bootLogo.src = headerLogo.src;
+
   loadSettings();
   applySettings();
   renderAll();
   await apiGet();
+
+  const minShowMs = 650;
+  const elapsed = Date.now() - bootStart;
+  setTimeout(() => {
+    const overlay = document.getElementById('bootOverlay');
+    if (overlay) {
+      overlay.classList.add('boot-hide');
+      setTimeout(() => { overlay.style.display = 'none'; }, 450);
+    }
+  }, Math.max(0, minShowMs - elapsed));
 }
 
 // ---------- BACKEND API ----------
@@ -1360,9 +1411,11 @@ function openDeckModal(deckId) {
   document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket} · Current: ${deck.edition}`;
 
   const headerEl = document.getElementById('deckModalHeader');
+  const posY = (deck.coverImagePositionY != null) ? deck.coverImagePositionY : 30;
   if (deck.coverImageUrl) {
     headerEl.style.display = 'block';
     headerEl.style.backgroundImage = `url('${deck.coverImageUrl}')`;
+    headerEl.style.backgroundPositionY = posY + '%';
   } else {
     headerEl.style.display = 'none';
     headerEl.style.backgroundImage = '';
@@ -1401,8 +1454,14 @@ function openDeckModal(deckId) {
   document.getElementById('deckArtResults').innerHTML = '';
   deckArtSearchResults = [];
   selectedCoverImage = deck.coverImageUrl ? { url: deck.coverImageUrl, name: deck.coverImageCardName || '' } : null;
+  selectedCoverImagePositionY = posY;
   document.getElementById('deckArtSelectedLabel').textContent = deck.coverImageUrl
     ? `Current cover: ${deck.coverImageCardName || 'custom art'}` : '';
+  if (deck.coverImageUrl) {
+    showArtPreview(deck.coverImageUrl, posY);
+  } else {
+    document.getElementById('deckArtPositionWrap').style.display = 'none';
+  }
 
   document.getElementById('deckModal').classList.add('active');
 }
@@ -1419,6 +1478,7 @@ document.getElementById('decklistModal').addEventListener('click', (e) => { if (
 
 let deckArtSearchResults = [];
 let selectedCoverImage = null;
+let selectedCoverImagePositionY = 30;
 async function searchDeckArt() {
   const query = document.getElementById('editDeckArtSearch').value.trim();
   if (!query) return;
@@ -1446,8 +1506,22 @@ function selectDeckArt(i) {
   const c = deckArtSearchResults[i];
   if (!c) return;
   selectedCoverImage = { url: c.imageUrl, name: c.name };
+  selectedCoverImagePositionY = 30;
   document.querySelectorAll('.art-thumb').forEach((el, idx) => el.classList.toggle('selected', idx === i));
   document.getElementById('deckArtSelectedLabel').textContent = `Selected: ${c.name}`;
+  showArtPreview(c.imageUrl, 30);
+}
+function showArtPreview(url, positionY) {
+  const wrap = document.getElementById('deckArtPositionWrap');
+  const frame = document.getElementById('artPreviewFrame');
+  wrap.style.display = 'block';
+  frame.style.backgroundImage = `url('${url}')`;
+  frame.style.backgroundPositionY = positionY + '%';
+  document.getElementById('editDeckArtPositionY').value = positionY;
+}
+function updateArtPreviewPosition(val) {
+  selectedCoverImagePositionY = Number(val);
+  document.getElementById('artPreviewFrame').style.backgroundPositionY = val + '%';
 }
 function toggleDeckEdit() {
   const wrap = document.getElementById('deckEditWrap');
@@ -1469,6 +1543,7 @@ async function saveDeckEdits() {
   if (selectedCoverImage) {
     payload.coverImageUrl = selectedCoverImage.url;
     payload.coverImageCardName = selectedCoverImage.name;
+    payload.coverImagePositionY = selectedCoverImagePositionY;
   }
   await apiPost('updateDeck', payload);
   openDeckModal(deck.id);
@@ -1754,10 +1829,10 @@ function computeAllDeckPowers() {
   // eliminating deck sets the ceiling) rather than an arbitrary fixed number.
   //
   // Win rate (and therefore Power) simply isn't calculated at all until a deck
-  // has more than 3 games logged — below that a single lucky win would read as
+  // has at least 2 games logged — below that a single lucky win would read as
   // a "100%" deck with no real evidence behind it, so it shows as ungraded
   // instead of a misleading number.
-  const MIN_GAMES_FOR_RATING = 4;
+  const MIN_GAMES_FOR_RATING = 2;
   const withGames = all.filter(r => r.gp > 0);
   const maxElimRate = Math.max(0, ...withGames.map(r => r.elimRate));
   const turnedRows = withGames.filter(r => r.avgTurn !== null);
@@ -2015,7 +2090,7 @@ function renderLeaderboard() {
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(r.deck.id); };
     tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(r.deck.colors)}"></div>${escapeHtml(r.deck.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
-      <td class="num mono power-cell" title="${notRated ? 'Needs more than 3 games logged before Power calculates' : ''}">${notRated ? '—' : r.power}</td>
+      <td class="num mono power-cell" title="${notRated ? 'Needs at least 2 games logged before Power calculates' : ''}">${notRated ? '—' : r.power}</td>
       <td class="num mono" style="color:var(--sage)">${winPct}</td>
       <td class="num mono">${avgTurn}</td>
       <td class="num mono">${r.gp}</td>`;
@@ -2032,11 +2107,12 @@ function renderGamesLog() {
   games.forEach(g => {
     const winner = g.participants.find(p => p.outcome === 'win');
     const winnerDeck = winner ? DATA.decks.find(d => d.id === winner.deckId) : null;
+    const winnerPlayer = winner ? DATA.players.find(p => p.id === (winner.pilotId || winner.playerId)) : null;
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = () => openGameDetail(g.id);
     tr.innerHTML = `<td class="mono" style="color:var(--paper-dim2)">${g.date}</td>
-      <td>${winnerDeck ? escapeHtml(winnerDeck.name) + ' ' + pipsFor(winnerDeck.colors) : '—'} <span class="badge win">won</span></td>
+      <td>${winnerDeck ? escapeHtml(winnerDeck.name) + ' ' + pipsFor(winnerDeck.colors) : '—'} <span class="badge win">won</span>${winnerPlayer ? `<div class="history-note">${escapeHtml(winnerPlayer.name)}</div>` : ''}</td>
       <td class="num mono">${g.playerCount}p · T${g.endTurn}</td>`;
     tbody.appendChild(tr);
   });
