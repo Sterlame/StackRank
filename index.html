@@ -337,8 +337,11 @@
   .pod-uneven-note { color: var(--paper-dim2); font-size: 0.75rem; font-style: italic; margin-top: 4px; }
 
   .deck-modal-header {
-    margin: 4px -24px 16px -24px; height: 130px;
-    background-size: cover; background-position: center; background-color: var(--panel-raised);
+    margin: 4px -24px 16px -24px; height: 190px;
+    background-size: cover; background-position: center 30%; background-color: var(--panel-raised);
+  }
+  @media (max-width: 640px) {
+    .deck-modal-header { height: 150px; }
   }
   .btn-decklist {
     display: block; width: 100%; text-align: center; background: none; border: 1px solid var(--line);
@@ -680,7 +683,6 @@
         <div><label>Date</label><input id="gameDate" type="date"></div>
         <div><label>Turn the game ended</label><input id="gameEndTurn" type="number" min="1" placeholder="e.g. 9"></div>
       </div>
-      <div class="notice" id="pendingPlayNotice"></div>
     </div>
     <div id="participantsWrap"></div>
     <button class="btn ghost" onclick="addParticipantRow()">+ Add participant</button>
@@ -890,10 +892,10 @@
       fastest and slowest average win turns in your pod.
     </div>
     <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
-      Win rate is also eased toward a neutral 50% for decks with fewer than 5
-      games logged — otherwise a single lucky win reads as a "100%" deck. A
-      <strong>~</strong> before the number means it's still provisional; it firms up as
-      more games get played.
+      Win rate — and Power along with it — isn't calculated at all until a
+      deck has played more than 3 games. Below that it shows as
+      <strong>—</strong> rather than a number, since one lucky win in a
+      tiny sample isn't real evidence yet.
     </div>
   </div>
 </div>
@@ -1203,7 +1205,6 @@ document.querySelectorAll('nav button').forEach(btn => {
     if (btn.dataset.view === 'board') renderLeaderboard();
     if (btn.dataset.view === 'mydecks') renderMyDecksPlayerSelect();
     if (btn.dataset.view === 'play') { refreshGsSelects(); renderPhaseTracker(); }
-    if (btn.dataset.view === 'log') renderPendingPlayNotice();
     if (btn.dataset.view === 'matchmaking') refreshMmSelects();
     updatePlayActionBar();
   });
@@ -1691,23 +1692,16 @@ async function submitGame() {
         deckEdition: (DATA.decks.find(d => d.id === deckId) || {}).edition || null });
     }
     if (winCount !== 1) { notice.textContent = 'Mark exactly one participant as the Win.'; return; }
-    const extras = {};
-    if (pendingPlayData.turnTimes) extras.turnTimes = pendingPlayData.turnTimes;
-    if (pendingPlayData.finalLife) extras.finalLife = pendingPlayData.finalLife;
-    if (pendingPlayData.finalPoison) extras.finalPoison = pendingPlayData.finalPoison;
     const payload = { id: editingGameId || uid('g'), date, endTurn, playerCount: participants.length, participants };
-    if (Object.keys(extras).length) payload.extras = extras;
     const action = editingGameId ? 'updateGame' : 'logGame';
     const wasEditing = !!editingGameId;
     const result = await apiPost(action, payload);
     if (result && result.ok) {
-      notice.textContent = wasEditing ? 'Game updated.' : (Object.keys(extras).length ? 'Game saved (play data attached).' : 'Game saved.');
+      notice.textContent = wasEditing ? 'Game updated.' : 'Game saved.';
       document.getElementById('participantsWrap').innerHTML = '';
       document.getElementById('gameDate').value = '';
       document.getElementById('gameEndTurn').value = '';
       participantRowCount = 0;
-      pendingPlayData = { turnTimes: null, finalLife: null, finalPoison: null };
-      renderPendingPlayNotice();
       editingGameId = null;
       refreshEditGameBanner();
     }
@@ -1759,11 +1753,11 @@ function computeAllDeckPowers() {
   // Elim and speed are scaled relative to this pod's own field (fastest/most-
   // eliminating deck sets the ceiling) rather than an arbitrary fixed number.
   //
-  // Win rate is also shrunk toward a neutral 50% baseline in proportion to how
-  // few games a deck has played (full confidence at CONFIDENCE_GAMES games) —
-  // otherwise one lucky win with a 1-game sample reads as a "100%" deck and
-  // dominates the board before there's any real evidence behind it.
-  const CONFIDENCE_GAMES = 5;
+  // Win rate (and therefore Power) simply isn't calculated at all until a deck
+  // has more than 3 games logged — below that a single lucky win would read as
+  // a "100%" deck with no real evidence behind it, so it shows as ungraded
+  // instead of a misleading number.
+  const MIN_GAMES_FOR_RATING = 4;
   const withGames = all.filter(r => r.gp > 0);
   const maxElimRate = Math.max(0, ...withGames.map(r => r.elimRate));
   const turnedRows = withGames.filter(r => r.avgTurn !== null);
@@ -1771,21 +1765,29 @@ function computeAllDeckPowers() {
   const maxTurn = turnedRows.length ? Math.max(...turnedRows.map(r => r.avgTurn)) : null;
   all.forEach(r => {
     if (r.gp > 0) {
-      const confidence = Math.min(1, r.gp / CONFIDENCE_GAMES);
-      const adjustedWinRate = confidence * r.weightedWinRate + (1 - confidence) * 0.5;
-      r.powerProvisional = r.gp < CONFIDENCE_GAMES;
-      const winScore = adjustedWinRate * 100;
-      const elimScore = maxElimRate > 0 ? (r.elimRate / maxElimRate) * 100 : 0;
-      let speedScore = 0;
-      if (r.avgTurn !== null) {
-        speedScore = (maxTurn === minTurn) ? 100 : ((maxTurn - r.avgTurn) / (maxTurn - minTurn)) * 100;
-      }
-      r.power = Math.round(0.4 * winScore + 0.35 * elimScore + 0.25 * speedScore);
+      r.hasEnoughGames = r.gp >= MIN_GAMES_FOR_RATING;
       r.powerIsEstimate = false;
+      if (r.hasEnoughGames) {
+        const winScore = r.weightedWinRate * 100;
+        const elimScore = maxElimRate > 0 ? (r.elimRate / maxElimRate) * 100 : 0;
+        let speedScore = 0;
+        if (r.avgTurn !== null) {
+          speedScore = (maxTurn === minTurn) ? 100 : ((maxTurn - r.avgTurn) / (maxTurn - minTurn)) * 100;
+        }
+        r.power = Math.round(0.4 * winScore + 0.35 * elimScore + 0.25 * speedScore);
+        r.effectivePower = r.power;
+      } else {
+        r.power = null;
+        // Matchmaking still needs a usable number even for ungraded decks —
+        // fall back to the bracket estimate for that purpose only.
+        r.effectivePower = Math.round((r.bracket / 5) * 100);
+      }
     } else {
       // No games yet — estimate from self-reported bracket so it can still be used.
       r.power = Math.round((r.bracket / 5) * 100);
+      r.effectivePower = r.power;
       r.powerIsEstimate = true;
+      r.hasEnoughGames = false;
     }
   });
   return all;
@@ -1889,11 +1891,13 @@ function runMatchmaking() {
 
   // Reference power for initial seeding: chosen deck's power, or the average
   // across their decks if undecided (just a starting point for grouping).
+  // Uses effectivePower (falls back to bracket estimate for ungraded decks)
+  // so matchmaking still works even before a deck has enough games rated.
   entries.forEach(e => {
     if (e.deckId) {
-      e.refPower = powerByDeckId[e.deckId].power;
+      e.refPower = powerByDeckId[e.deckId].effectivePower;
     } else {
-      const avg = e.ownDecks.reduce((sum, d) => sum + (powerByDeckId[d.id] ? powerByDeckId[d.id].power : 0), 0) / e.ownDecks.length;
+      const avg = e.ownDecks.reduce((sum, d) => sum + (powerByDeckId[d.id] ? powerByDeckId[d.id].effectivePower : 0), 0) / e.ownDecks.length;
       e.refPower = avg;
     }
   });
@@ -1914,13 +1918,13 @@ function runMatchmaking() {
   pods.forEach(pod => {
     const decided = pod.filter(e => e.deckId);
     const podAvg = decided.length
-      ? decided.reduce((sum, e) => sum + powerByDeckId[e.deckId].power, 0) / decided.length
+      ? decided.reduce((sum, e) => sum + powerByDeckId[e.deckId].effectivePower, 0) / decided.length
       : pod.reduce((sum, e) => sum + e.refPower, 0) / pod.length;
     pod.forEach(e => {
       if (!e.deckId) {
         let best = e.ownDecks[0], bestDiff = Infinity;
         e.ownDecks.forEach(d => {
-          const p = powerByDeckId[d.id] ? powerByDeckId[d.id].power : 0;
+          const p = powerByDeckId[d.id] ? powerByDeckId[d.id].effectivePower : 0;
           const diff = Math.abs(p - podAvg);
           if (diff < bestDiff) { bestDiff = diff; best = d; }
         });
@@ -1940,16 +1944,16 @@ function renderMatchmakingResults(pods, powerByDeckId) {
   const fourCount = pods.filter(p => p.length === 4).length;
   wrap.innerHTML = pods.map((pod, i) => {
     const decks = pod.map(e => powerByDeckId[e.deckId]);
-    const avgPower = Math.round(decks.reduce((sum, d) => sum + d.power, 0) / decks.length);
+    const avgPower = Math.round(decks.reduce((sum, d) => sum + d.effectivePower, 0) / decks.length);
     const members = pod.map(e => {
       const deckRow = powerByDeckId[e.deckId];
-      const estTag = deckRow.powerIsEstimate ? ' (est.)' : '';
+      const estTag = (deckRow.powerIsEstimate || !deckRow.hasEnoughGames) ? ' (est.)' : '';
       return `<div class="pod-member-row">
         <div>
           <div class="pod-member-name">${escapeHtml(e.player.name)}${e.recommended ? '<span class="pod-recommend-tag">recommended</span>' : ''}</div>
           <div class="pod-member-deck">${escapeHtml(deckRow.deck.name)} ${pipsFor(deckRow.deck.colors)}</div>
         </div>
-        <div class="pod-power">${deckRow.power}${estTag}</div>
+        <div class="pod-power">${deckRow.effectivePower}${estTag}</div>
       </div>`;
     }).join('');
     return `<div class="panel pod-card">
@@ -2003,15 +2007,16 @@ function renderLeaderboard() {
   tbody.innerHTML = '';
   document.getElementById('boardEmpty').style.display = rows.length ? 'none' : 'block';
   rows.forEach(r => {
-    const winPct = (r.winpct * 100).toFixed(0);
+    const notRated = !r.hasEnoughGames;
+    const winPct = notRated ? '—' : (r.winpct * 100).toFixed(0) + '%';
     const avgTurn = r.avgTurn === null ? '—' : r.avgTurn.toFixed(1);
     const cmd = commanderLine(r.deck);
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(r.deck.id); };
     tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(r.deck.colors)}"></div>${escapeHtml(r.deck.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
-      <td class="num mono power-cell" title="${r.powerProvisional ? 'Provisional — fewer than 5 games logged' : ''}">${r.powerProvisional ? '~' : ''}${r.power}</td>
-      <td class="num mono" style="color:var(--sage)">${winPct}%</td>
+      <td class="num mono power-cell" title="${notRated ? 'Needs more than 3 games logged before Power calculates' : ''}">${notRated ? '—' : r.power}</td>
+      <td class="num mono" style="color:var(--sage)">${winPct}</td>
       <td class="num mono">${avgTurn}</td>
       <td class="num mono">${r.gp}</td>`;
     tbody.appendChild(tr);
@@ -2724,14 +2729,6 @@ function showGameSavedOverlay(msg, dismissable) {
   }
 }
 document.getElementById('gameWonModal').addEventListener('click', (e) => { if (e.target.id === 'gameWonModal') closeGameWonModal(); });
-
-function attachTurnTimesToLog() {
-  const filtered = {};
-  Object.keys(turnTimes).forEach(pid => { if (DATA.players.some(p => p.id === pid)) filtered[pid] = turnTimes[pid]; });
-  if (!Object.keys(filtered).length) { alert('No completed turn times yet to attach.'); return; }
-  pendingPlayData.turnTimes = filtered;
-  renderPendingPlayNotice();
-}
 
 
 // ---------- SWIPE GESTURE on the phase banner (left = next, right = prev) ----------
