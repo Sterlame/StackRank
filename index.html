@@ -2813,6 +2813,21 @@ function prevPhase() {
   if (phaseIndex > 0) { phaseIndex--; buzz(HAPTIC_PHASE); }
   renderPhaseTracker();
 }
+// Left/Right arrow keys step through phases on desktop, mirroring the
+// Prev/Next buttons — only while actively on the Play tab with a game
+// running, not while typing in a field or with a modal/tour open.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (!activeGame || !showPhases) return;
+  const playView = document.getElementById('view-play');
+  if (!playView || !playView.classList.contains('active')) return;
+  const tag = document.activeElement ? document.activeElement.tagName : '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (document.querySelector('.modal-backdrop.active')) return;
+  if (document.getElementById('tourOverlay').style.display === 'block') return;
+  e.preventDefault();
+  if (e.key === 'ArrowRight') nextPhase(); else prevPhase();
+});
 function endTurnNow() {
   if (!activeGame) return;
   snapshotForUndo('Turn ended');
