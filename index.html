@@ -169,10 +169,6 @@
   .empty { color: var(--paper-dim2); font-size: 0.82rem; padding: 6px 0; }
   .pips { display: inline-flex; gap: 3px; vertical-align: middle; }
   .pip { font-size: 0.85rem; line-height: 1; }
-  .edition-tag {
-    display: inline-block; font-family: ui-monospace, monospace; font-weight: 700; font-size: 0.6rem; letter-spacing: 0.02em;
-    padding: 2px 6px; border: 1px solid var(--gold-dim); color: var(--gold); margin-left: 6px;
-  }
 
   .participant-card { border: 1px solid var(--line); padding: 14px; margin-bottom: 12px; position: relative; }
   .participant-card .kill { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -231,6 +227,7 @@
   .hof-shame .hof-value { color: var(--danger); }
   .hof-sub { color: var(--paper-dim2); font-weight: 500; font-size: 0.78rem; }
   .power-cell { color: var(--gold); font-weight: 800; font-size: 0.95rem; }
+  .trend-up { color: var(--sage); font-size: 0.68rem; margin-left: 3px; vertical-align: super; }
   .color-banner { height: 5px; width: 100%; max-width: 160px; border-radius: 1px; margin-bottom: 5px; }
 
   @media (max-width: 640px) {
@@ -363,7 +360,7 @@
     background-size: cover; background-position: center 30%; background-color: var(--panel-raised);
   }
   @media (max-width: 640px) {
-    .deck-modal-header { height: 150px; }
+    .deck-modal-header { height: 150px; margin: 4px -18px 16px -18px; }
   }
   .btn-decklist {
     display: block; width: 100%; text-align: center; background: none; border: 1px solid var(--line);
@@ -843,7 +840,7 @@
         <h2>Decks</h2>
         <div id="decksGrouped"></div>
         <div class="empty" id="decksEmpty">No decks registered yet.</div>
-        <div class="status-line">Click a deck to view its edition history, edit it, or log upgrades.</div>
+        <div class="status-line">Click a deck to view its stats or edit its details.</div>
       </div>
     </div>
   </section>
@@ -921,11 +918,15 @@
       <strong>25% speed</strong> — how fast the deck's wins close out, scaled against the
       fastest and slowest average win turns in your pod.
     </div>
-    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6; margin-bottom: 12px;">
       Win rate — and Power along with it — isn't calculated at all until a
       deck has played at least 2 games. Below that it shows as
       <strong>—</strong> rather than a number, since one lucky win in a
       tiny sample isn't real evidence yet.
+    </div>
+    <div class="history-note" style="font-size: 0.85rem; line-height: 1.6;">
+      A small <span class="trend-up">▲</span> next to Power means the deck is
+      rising — its last 3 games are well ahead of its earlier form.
     </div>
   </div>
 </div>
@@ -1033,17 +1034,6 @@
         <button class="btn small" onclick="saveDeckEdits()">Save changes</button>
       </div>
     </div>
-
-    <div id="modalHistory"></div>
-    <div style="margin-top:18px; border-top:1px solid var(--line); padding-top:16px;">
-      <label>Log an upgrade</label>
-      <div class="row">
-        <div><input id="editionLabel" placeholder="e.g. mk2"></div>
-        <div><input id="editionDate" type="date"></div>
-      </div>
-      <textarea id="editionNote" rows="2" placeholder="What changed (optional)"></textarea>
-      <button class="btn small" onclick="logEdition()">Save edition</button>
-    </div>
   </div>
 </div>
 
@@ -1087,7 +1077,7 @@
 let DATA = { players: [], decks: [], games: [] };
 // The pod's shared backend — hardcoded so the app connects automatically.
 // Change this if you ever redeploy the Apps Script to a new /exec URL.
-const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxoLGGCitoNZvfnGtg35rhPnYf8YkVSIALVmZMP3U1HA7mKzQoR0Ow7qg_LeBL3cb1gzg/exec';
+const DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx-g0NBb4uNRMd4duH4KDcToeSZkzau0dbxJPQhuByDaVK16F3rnFaynlmNFQGvhYDcBw/exec';
 
 let SETTINGS = { theme: 'ledger', backendUrl: DEFAULT_BACKEND_URL };
 let participantRowCount = 0;
@@ -1323,7 +1313,7 @@ function renderDecks() {
   function deckRowHtml(d) {
     const cmd = commanderLine(d);
     return `<tr class="clickable" onclick="if(event.target.tagName!=='BUTTON') openDeckModal('${d.id}')">
-      <td><div class="color-banner" style="${colorBannerStyle(d.colors)}"></div>${escapeHtml(d.name)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
+      <td><div class="color-banner" style="${colorBannerStyle(d.colors)}"></div>${escapeHtml(d.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono">B${d.bracket}</td>
       <td class="num"><button class="remove-link" onclick="removeDeck('${d.id}')">remove</button></td>
     </tr>`;
@@ -1376,7 +1366,7 @@ function renderMyDecks() {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(d.id); };
-    tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(d.colors)}"></div>${escapeHtml(d.name)}<span class="edition-tag">${d.edition}</span>${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
+    tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(d.colors)}"></div>${escapeHtml(d.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
       <td class="num mono">B${d.bracket}</td><td class="num mono">${gp}</td><td class="num mono" style="color:var(--sage)">${winPct}</td>`;
     tbody.appendChild(tr);
   });
@@ -1408,14 +1398,14 @@ function openDeckModal(deckId) {
   document.getElementById('modalDeckName').innerHTML = `${escapeHtml(deck.name)} ${pipsFor(deck.colors)}`;
   const cmd = commanderLine(deck);
   document.getElementById('modalDeckCommander').textContent = cmd || '';
-  document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket} · Current: ${deck.edition}`;
+  document.getElementById('modalDeckMeta').textContent = `${pilot ? pilot.name : 'unassigned'} · Bracket ${deck.bracket}`;
 
   const headerEl = document.getElementById('deckModalHeader');
   const posY = (deck.coverImagePositionY != null) ? deck.coverImagePositionY : 30;
   if (deck.coverImageUrl) {
     headerEl.style.display = 'block';
     headerEl.style.backgroundImage = `url('${deck.coverImageUrl}')`;
-    headerEl.style.backgroundPositionY = posY + '%';
+    headerEl.style.backgroundPosition = `center ${posY}%`;
   } else {
     headerEl.style.display = 'none';
     headerEl.style.backgroundImage = '';
@@ -1432,14 +1422,6 @@ function openDeckModal(deckId) {
     <div class="counter-row"><span>Threatened win rate</span><span class="counter-value">${(dstats.threats / dstats.gp * 100).toFixed(0)}%</span></div>
     <div class="counter-row"><span>Eliminations</span><span class="counter-value">${dstats.elims} (${dstats.elimRate.toFixed(2)}/game)</span></div>
   ` : '<div class="empty" style="padding:4px 0;">No games logged yet.</div>';
-  document.getElementById('modalHistory').innerHTML = [...deck.history].reverse().map(h => `
-    <div class="history-row">
-      <div><span class="edition-tag">${escapeHtml(h.edition)}</span>${h.note ? `<div class="history-note">${escapeHtml(h.note)}</div>` : ''}</div>
-      <div class="mono" style="color:var(--paper-dim2)">${h.date}</div>
-    </div>`).join('');
-  document.getElementById('editionLabel').value = '';
-  document.getElementById('editionDate').value = todayStr();
-  document.getElementById('editionNote').value = '';
 
   // reset + prefill the edit section, collapsed by default
   document.getElementById('deckEditWrap').style.display = 'none';
@@ -1516,12 +1498,12 @@ function showArtPreview(url, positionY) {
   const frame = document.getElementById('artPreviewFrame');
   wrap.style.display = 'block';
   frame.style.backgroundImage = `url('${url}')`;
-  frame.style.backgroundPositionY = positionY + '%';
+  frame.style.backgroundPosition = `center ${positionY}%`;
   document.getElementById('editDeckArtPositionY').value = positionY;
 }
 function updateArtPreviewPosition(val) {
   selectedCoverImagePositionY = Number(val);
-  document.getElementById('artPreviewFrame').style.backgroundPositionY = val + '%';
+  document.getElementById('artPreviewFrame').style.backgroundPosition = `center ${val}%`;
 }
 function toggleDeckEdit() {
   const wrap = document.getElementById('deckEditWrap');
@@ -1557,17 +1539,6 @@ document.getElementById('bracketInfoModal').addEventListener('click', (e) => { i
 function openPowerInfoModal() { document.getElementById('powerInfoModal').classList.add('active'); }
 function closePowerInfoModal() { document.getElementById('powerInfoModal').classList.remove('active'); }
 document.getElementById('powerInfoModal').addEventListener('click', (e) => { if (e.target.id === 'powerInfoModal') closePowerInfoModal(); });
-
-async function logEdition() {
-  const deck = DATA.decks.find(d => d.id === activeDeckId);
-  if (!deck) return;
-  const label = document.getElementById('editionLabel').value.trim();
-  const date = document.getElementById('editionDate').value || todayStr();
-  const note = document.getElementById('editionNote').value.trim();
-  if (!label) return;
-  await apiPost('logEdition', { deckId: deck.id, edition: label, date, note });
-  openDeckModal(deck.id);
-}
 
 // ---------- LOG GAME ----------
 function addParticipantRow() {
@@ -1618,6 +1589,7 @@ function addParticipantRow() {
 function populateParticipantRow(rowId, pt) {
   const row = document.getElementById(rowId);
   row.querySelector('.pl-select').value = pt.playerId;
+  refreshLogDeckOptions(row);
   row.querySelector('.deck-select').value = pt.deckId;
   if (pt.pilotId && pt.pilotId !== pt.playerId) {
     row.querySelector('.pilot-override').checked = true;
@@ -1686,16 +1658,33 @@ function refreshEditGameBanner() {
 }
 function refreshParticipantSelects() {
   const playerOpts = DATA.players.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-  const deckOpts = DATA.decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.edition})</option>`).join('');
   document.querySelectorAll('.pl-select, .alt-pl-select').forEach(sel => { const c = sel.value; sel.innerHTML = playerOpts; if (c) sel.value = c; });
-  document.querySelectorAll('.deck-select').forEach(sel => { const c = sel.value; sel.innerHTML = deckOpts; if (c) sel.value = c; });
+  document.querySelectorAll('#participantsWrap .participant-card').forEach(row => refreshLogDeckOptions(row));
   document.querySelectorAll('.kill-eliminated-select').forEach(sel => { const c = sel.value; sel.innerHTML = playerOpts; if (c) sel.value = c; });
 }
-function syncPilotDefault(rowId) {
-  const row = document.getElementById(rowId);
+// Groups the deck dropdown by the selected player's own decks first (defaulting
+// to one of them), with everyone else's decks still available below for the
+// "different pilot" / borrowed-deck case.
+function refreshLogDeckOptions(row) {
   const playerId = row.querySelector('.pl-select').value;
-  const deck = DATA.decks.find(d => d.playerId === playerId);
-  if (deck) row.querySelector('.deck-select').value = deck.id;
+  const deckSel = row.querySelector('.deck-select');
+  const current = deckSel.value;
+  const own = DATA.decks.filter(d => d.playerId === playerId);
+  const others = DATA.decks.filter(d => d.playerId !== playerId);
+  const player = DATA.players.find(p => p.id === playerId);
+  const ownOpts = own.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+  const otherOpts = others.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+  deckSel.innerHTML =
+    (own.length ? `<optgroup label="${player ? escapeHtml(player.name) + '&#8217;s decks' : 'This player'}">${ownOpts}</optgroup>` : '') +
+    (others.length ? `<optgroup label="All other decks">${otherOpts}</optgroup>` : '');
+  if (current && DATA.decks.some(d => d.id === current)) {
+    deckSel.value = current;
+  } else if (own.length) {
+    deckSel.value = own[0].id;
+  }
+}
+function syncPilotDefault(rowId) {
+  refreshLogDeckOptions(document.getElementById(rowId));
 }
 function togglePilot(rowId) {
   const row = document.getElementById(rowId);
@@ -1763,8 +1752,7 @@ async function submitGame() {
         if (eliminatedPlayerId && turn) kills.push({ eliminatedPlayerId, turn });
       });
       participants.push({ playerId, deckId, pilotId: override ? altPlayerId : playerId, outcome, eliminations: kills,
-        threatenedWin, threatenedTurn, seat, t1a,
-        deckEdition: (DATA.decks.find(d => d.id === deckId) || {}).edition || null });
+        threatenedWin, threatenedTurn, seat, t1a });
     }
     if (winCount !== 1) { notice.textContent = 'Mark exactly one participant as the Win.'; return; }
     const payload = { id: editingGameId || uid('g'), date, endTurn, playerCount: participants.length, participants };
@@ -1864,7 +1852,38 @@ function computeAllDeckPowers() {
       r.powerIsEstimate = true;
       r.hasEnoughGames = false;
     }
+    r.trendingUp = false;
   });
+
+  // Trending indicator: compare each deck's most recent 3 games against its
+  // earlier form. A big enough jump in win rate gets a small "rising" mark on
+  // the leaderboard — needs enough history on both sides to mean anything.
+  const RECENT_WINDOW = 3;
+  const TREND_THRESHOLD = 0.3; // 30-point swing in weighted win rate
+  all.forEach(r => {
+    if (!r.hasEnoughGames) return;
+    const entries = [];
+    DATA.games.forEach(g => {
+      const pt = g.participants.find(p => p.deckId === r.deck.id);
+      if (pt) entries.push({ g, pt });
+    });
+    entries.sort((a, b) => (a.g.date < b.g.date ? -1 : a.g.date > b.g.date ? 1 : 0));
+    if (entries.length < RECENT_WINDOW + 2) return; // not enough prior history for a fair comparison
+    const recent = entries.slice(-RECENT_WINDOW);
+    const prior = entries.slice(0, -RECENT_WINDOW);
+    const weightedRate = (list) => {
+      let beaten = 0, faced = 0;
+      list.forEach(({ g, pt }) => {
+        faced += Math.max(0, g.playerCount - 1);
+        if (pt.outcome === 'win') beaten += Math.max(0, g.playerCount - 1);
+      });
+      return faced ? beaten / faced : 0;
+    };
+    const recentRate = weightedRate(recent);
+    const priorRate = weightedRate(prior);
+    if (recentRate - priorRate >= TREND_THRESHOLD) r.trendingUp = true;
+  });
+
   return all;
 }
 
@@ -2086,11 +2105,12 @@ function renderLeaderboard() {
     const winPct = notRated ? '—' : (r.winpct * 100).toFixed(0) + '%';
     const avgTurn = r.avgTurn === null ? '—' : r.avgTurn.toFixed(1);
     const cmd = commanderLine(r.deck);
+    const trendMark = r.trendingUp ? '<span class="trend-up" title="Rising — recent games are well above this deck\'s earlier form">▲</span>' : '';
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = (e) => { if (e.target.tagName !== 'BUTTON') openDeckModal(r.deck.id); };
     tr.innerHTML = `<td><div class="color-banner" style="${colorBannerStyle(r.deck.colors)}"></div>${escapeHtml(r.deck.name)}${cmd ? `<div class="history-note">${cmd}</div>` : ''}</td>
-      <td class="num mono power-cell" title="${notRated ? 'Needs at least 2 games logged before Power calculates' : ''}">${notRated ? '—' : r.power}</td>
+      <td class="num mono power-cell" title="${notRated ? 'Needs at least 2 games logged before Power calculates' : ''}">${notRated ? '—' : r.power}${trendMark}</td>
       <td class="num mono" style="color:var(--sage)">${winPct}</td>
       <td class="num mono">${avgTurn}</td>
       <td class="num mono">${r.gp}</td>`;
@@ -2246,7 +2266,7 @@ function openGameDetail(gameId) {
           <strong>${pt.seat ? `Seat ${pt.seat} · ` : ''}${escapeHtml(player ? player.name : '—')}</strong>
           <span class="badge ${pt.outcome === 'win' ? 'win' : ''}">${pt.outcome}${pt.threatenedWin ? ' · threatened T' + (pt.threatenedTurn || '?') : ''}${pt.t1a ? ' · T1A' : ''}</span>
         </div>
-        <div class="history-note">${escapeHtml(deck ? deck.name : '—')}${deck ? ' (' + escapeHtml(pt.deckEdition || deck.edition) + ')' : ''}${pilot ? ' · piloted by ' + escapeHtml(pilot.name) : ''}${deck && commanderLine(deck) ? ' · ' + commanderLine(deck) : ''}</div>
+        <div class="history-note">${escapeHtml(deck ? deck.name : '—')}${pilot ? ' · piloted by ' + escapeHtml(pilot.name) : ''}${deck && commanderLine(deck) ? ' · ' + commanderLine(deck) : ''}</div>
         <div class="history-note">Eliminated: ${elims}</div>
         ${extraLine ? `<div class="history-note">${extraLine}</div>` : ''}
       </div>`;
@@ -2406,7 +2426,7 @@ function refreshGsDeckOptions(row) {
   const deckSel = row.querySelector('.gs-deck-select');
   const current = deckSel.value;
   const decks = showAll ? DATA.decks : DATA.decks.filter(d => d.playerId === playerId);
-  deckSel.innerHTML = decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.edition})</option>`).join('');
+  deckSel.innerHTML = decks.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
   if (current && decks.some(d => d.id === current)) deckSel.value = current;
 }
 function syncGsDeckDefault(sel) {
@@ -2481,7 +2501,15 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && activeGame) requestWakeLock();
 });
 
-function buzz(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} } }
+function buzz(pattern) { if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
+// Tiered haptics for the Play screen: tiny nudges for routine taps, a firmer
+// pulse for turn/life-swing moments, and a distinct multi-pulse for the one
+// truly consequential event — a player going out.
+const HAPTIC_PHASE = 8;
+const HAPTIC_TURN = 20;
+const HAPTIC_LIFE_SMALL = 8;
+const HAPTIC_LIFE_BIG = 20;
+const HAPTIC_ELIMINATE = [40, 30, 40];
 function toggleCollapse(headerEl) {
   const body = headerEl.nextElementSibling;
   const open = body.style.display !== 'none';
@@ -2605,15 +2633,15 @@ function renderElimSessionList() {
     return `<div class="counter-row"><span>${escapeHtml(target ? target.name : '—')}${by ? ' — by ' + escapeHtml(by.name) : ''}</span><span class="counter-value mono">T${e.turn}</span></div>`;
   }).join('');
 }
-function goToPhase(i) { if (!activeGame) return; phaseIndex = i; renderPhaseTracker(); }
+function goToPhase(i) { if (!activeGame) return; phaseIndex = i; buzz(HAPTIC_PHASE); renderPhaseTracker(); }
 function nextPhase() {
   if (!activeGame) return;
   if (phaseIndex === PHASES.length - 1) { endTurnNow(); }
-  else { phaseIndex++; renderPhaseTracker(); }
+  else { phaseIndex++; buzz(HAPTIC_PHASE); renderPhaseTracker(); }
 }
 function prevPhase() {
   if (!activeGame) return;
-  if (phaseIndex > 0) phaseIndex--;
+  if (phaseIndex > 0) { phaseIndex--; buzz(HAPTIC_PHASE); }
   renderPhaseTracker();
 }
 function endTurnNow() {
@@ -2622,7 +2650,7 @@ function endTurnNow() {
   closeTurnSegment(); // credits elapsed time to the player whose turn just ended
   advanceSeat();
   phaseIndex = 0;
-  buzz(15);
+  buzz(HAPTIC_TURN);
   renderPhaseTracker();
 }
 function advanceSeat() {
@@ -2639,10 +2667,11 @@ function advanceSeat() {
 function openEliminateModal() {
   if (!activeGame) return;
   const remaining = activeGame.playOrder.filter(p => !p.eliminated);
-  document.getElementById('elimTargetSelect').innerHTML = remaining.map(p => {
-    const player = DATA.players.find(x => x.id === p.playerId);
-    return `<option value="${p.playerId}">${escapeHtml(player ? player.name : '—')}</option>`;
-  }).join('');
+  document.getElementById('elimTargetSelect').innerHTML = '<option value="">— select player —</option>' +
+    remaining.map(p => {
+      const player = DATA.players.find(x => x.id === p.playerId);
+      return `<option value="${p.playerId}">${escapeHtml(player ? player.name : '—')}</option>`;
+    }).join('');
   document.getElementById('elimBySelect').innerHTML = '<option value="">— not player-caused —</option>' +
     activeGame.playOrder.map(p => {
       const player = DATA.players.find(x => x.id === p.playerId);
@@ -2661,7 +2690,7 @@ function confirmEliminate() {
   const p = activeGame.playOrder.find(x => x.playerId === targetId);
   if (p) p.eliminated = true;
   activeGame.eliminations.push({ eliminatedPlayerId: targetId, eliminatorId: byId, turn });
-  buzz(25);
+  buzz(HAPTIC_ELIMINATE);
   closeEliminateModal();
   renderPhaseTracker();
 }
@@ -2704,6 +2733,7 @@ function adjustSheetLife(delta) {
   const p = activeGame.playOrder.find(x => x.playerId === lifeSheetPlayerId);
   if (!p) return;
   p.life += delta;
+  buzz(Math.abs(delta) >= 5 ? HAPTIC_LIFE_BIG : HAPTIC_LIFE_SMALL);
   document.getElementById('lifeSheetNumber').textContent = p.life;
   if (p.life <= 0) {
     const player = DATA.players.find(x => x.id === lifeSheetPlayerId);
@@ -2722,7 +2752,7 @@ function quickEliminate(playerId) {
   snapshotForUndo('Player eliminated');
   p.eliminated = true;
   activeGame.eliminations.push({ eliminatedPlayerId: playerId, eliminatorId: null, turn: activeGame.roundNumber });
-  buzz(25);
+  buzz(HAPTIC_ELIMINATE);
   renderPhaseTracker();
 }
 document.getElementById('lifeSheetModal').addEventListener('click', (e) => { if (e.target.id === 'lifeSheetModal') closeLifeSheet(); });
@@ -2750,7 +2780,6 @@ async function sendActiveGameToLog(winnerId) {
   closeTurnSegment(); // final credit for the last active turn
 
   const participants = g.playOrder.map((p, i) => {
-    const deck = DATA.decks.find(d => d.id === p.deckId);
     const elims = g.eliminations
       .filter(e => e.eliminatorId === p.playerId)
       .map(e => ({ eliminatedPlayerId: e.eliminatedPlayerId, turn: e.turn }));
@@ -2758,8 +2787,7 @@ async function sendActiveGameToLog(winnerId) {
       playerId: p.playerId, deckId: p.deckId, pilotId: p.playerId,
       outcome: p.playerId === winnerId ? 'win' : 'loss',
       threatenedWin: false, threatenedTurn: null,
-      seat: i + 1, t1a: p.t1a, eliminations: elims,
-      deckEdition: deck ? deck.edition : null
+      seat: i + 1, t1a: p.t1a, eliminations: elims
     };
   });
 
