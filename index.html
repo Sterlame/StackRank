@@ -2926,19 +2926,22 @@ function renderLifeTiles() {
     </div>`;
   }).join('');
 
-  // Once each background image has actually loaded, sample its average
-  // brightness and flip the life number to whichever color stays readable
-  // against it — falls back to a safe light-on-dark-scrim look if the pixel
-  // read is blocked (e.g. a cross-origin image without CORS headers).
+  // The visible tile image is never CORS-gated, so it always displays no
+  // matter what the CDN's headers allow. Brightness sampling instead loads a
+  // second, throwaway copy with crossOrigin set purely for the canvas read —
+  // if that probe is blocked or fails, the visible image is unaffected and
+  // the number just keeps its default color.
   wrap.querySelectorAll('img[data-life-bg]').forEach(img => {
-    img.crossOrigin = 'anonymous';
-    const run = () => applyLifeTileContrast(img);
-    if (img.complete && img.naturalWidth) run();
-    else img.addEventListener('load', run, { once: true });
+    const tile = img.closest('.life-tile');
+    if (!tile) return;
+    const probe = new Image();
+    probe.crossOrigin = 'anonymous';
+    probe.onload = () => applyLifeTileContrast(probe, tile);
+    probe.onerror = () => {};
+    probe.src = img.src;
   });
 }
-function applyLifeTileContrast(img) {
-  const tile = img.closest('.life-tile');
+function applyLifeTileContrast(img, tile) {
   const numEl = tile ? tile.querySelector('.life-tile-num') : null;
   if (!numEl) return;
   try {
@@ -2957,7 +2960,8 @@ function applyLifeTileContrast(img) {
     numEl.classList.toggle('on-light-bg', brightness > 0.55);
     numEl.classList.toggle('on-dark-bg', brightness <= 0.55);
   } catch (e) {
-    numEl.classList.add('on-dark-bg');
+    // Canvas read blocked — leave the number at its default color rather
+    // than guessing; the background image itself still shows fine.
   }
 }
 function openLifeSheet(playerId) {
